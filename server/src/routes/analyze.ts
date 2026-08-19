@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { analyzeRequestSchema } from "../schemas.js";
-import { extractResumeText, PdfParseError } from "../services/pdfService.js";
+import { extractResumeText } from "../services/pdfService.js";
 import { analyzeResumeAgainstJob, ClaudeAnalysisError } from "../services/claudeService.js";
 import { saveAnalysis, SupabaseServiceError } from "../services/supabaseService.js";
 
@@ -28,19 +28,25 @@ analyzeRouter.post("/analyze", upload.single("resume"), async (req, res) => {
   const { jobDescription } = parsedBody.data;
 
   try {
-    const resumeText = await extractResumeText(file.buffer);
-    const result = await analyzeResumeAgainstJob(resumeText, jobDescription);
+    // Claude reads the PDF natively for scoring (handles layout/columns far
+    // better than raw text extraction). pdf-parse only backs the stored
+    // resume_text field, so a bad extraction there shouldn't fail the request.
+    const [result, extractedText] = await Promise.all([
+      analyzeResumeAgainstJob(file.buffer, jobDescription),
+      extractResumeText(file.buffer).catch((err) => {
+        console.error("Resume text extraction failed (non-fatal, storage only):", err);
+        return "";
+      }),
+    ]);
+
     const saved = await saveAnalysis({
-      resumeText,
+      resumeText: extractedText,
       resumeFilename: file.originalname,
       jdText: jobDescription,
       result,
     });
     return res.status(201).json(saved);
   } catch (error) {
-    if (error instanceof PdfParseError) {
-      return res.status(400).json({ error: error.message });
-    }
     if (error instanceof ClaudeAnalysisError) {
       return res.status(502).json({ error: error.message });
     }

@@ -56,10 +56,14 @@ export function Home({ onAnalyzed }: HomeProps) {
 
       {result && !isSubmitting && (
         <AnalysisResultView
-          matchScore={result.match_score}
+          match_score={result.match_score}
+          recommendation={result.recommendation}
           summary={result.summary}
+          criteria={result.criteria}
+          skills_matrix={result.skills_matrix}
           strengths={result.strengths}
           gaps={result.gaps}
+          interview_questions={result.interview_questions}
         />
       )}
     </div>

@@ -10,14 +10,20 @@ Browser (client, :5173)
 Express server (server, :3001)
   │
   ├─ multer (memory storage) → raw PDF buffer
-  ├─ pdfService.extractResumeText() → plain resume text
-  ├─ claudeService.analyzeResumeAgainstJob(resumeText, jdText)
-  │    → Anthropic Messages API, claude-sonnet-4-6
+  ├─ (parallel) claudeService.analyzeResumeAgainstJob(pdfBuffer, jdText)
+  │    → Anthropic Messages API, claude-sonnet-4-6, PDF sent as a native
+  │      `document` content block — Claude reads the PDF directly, no
+  │      text-extraction step in between
   │    → structured JSON via output_config.format (zodOutputFormat)
-  │    → { matchScore, strengths[], gaps[], summary }
+  │    → { matchScore, recommendation, criteria[], skillsMatrix[],
+  │        strengths[], gaps[], interviewQuestions[], summary }
+  ├─ (parallel) pdfService.extractResumeText() → plain text, best-effort,
+  │    only used for the stored resume_text field — failure here is
+  │    logged and falls back to "", it does not fail the request
   ├─ supabaseService.saveAnalysis() → insert into `analyses` table
   ▼
-Response: full analysis row → rendered as ScoreGauge + StrengthsGapsList
+Response: full analysis row → rendered as ScoreGauge, RecommendationBadge,
+CriteriaBreakdown, SkillsMatrixTable, StrengthsGapsList, InterviewQuestions
 ```
 
 `GET /api/analyses` and `GET /api/analyses/:id` read straight from Supabase, no Claude involved.
@@ -28,6 +34,8 @@ Response: full analysis row → rendered as ScoreGauge + StrengthsGapsList
 - **No router library on the client.** Only three views (Home, History, ResultDetail) with no deep-linking requirement in v1. Plain `useState` view-switching in `App.tsx` avoids adding `react-router-dom`, which wasn't in the agreed tech stack.
 - **Vite dev proxy instead of a client-side API base URL env var.** Keeps local dev to zero client-side config. This does *not* carry over to production — see `DEPLOYMENT.md`, the client needs a real API base URL once it's not being served by the Vite dev server.
 - **Anthropic errors are caught and rewritten in `claudeService.ts`**, not left to bubble up raw. Early testing surfaced a real bug: an unhandled `Anthropic.APIError` (e.g. the "credit balance too low" billing error) fell through to a generic 500 and leaked raw Anthropic error JSON to the client. Fixed by catching `Anthropic.APIError` specifically, logging the technical detail server-side, and returning a clean message to the client.
+- **Native PDF input to Claude instead of `pdf-parse` text extraction for scoring.** `pdf-parse` does raw text extraction and can mangle multi-column resumes or unusual formatting; Claude's document content block reads the PDF's actual layout. `pdf-parse` is kept only as a non-fatal side call to populate the stored `resume_text` field — it no longer gates whether scoring can happen.
+- **Evidence-grounded structured output instead of free-text strengths/gaps.** Every `strengths`/`gaps` entry is now `{point, evidence}` — the model has to cite the specific resume/JD language a claim rests on, not just assert it. Paired with per-criterion weighted scoring (`required` vs `preferred`) and a skills matrix, this is the shape recruiter-facing ATS tools actually use, not just a single opaque number.
 
 ## Known gotcha: Supabase auto-enables RLS on new tables
 
@@ -38,17 +46,18 @@ Response: full analysis row → rendered as ScoreGauge + StrengthsGapsList
 ```
 server/src/
   lib/          env validation, Supabase client, Anthropic client + model constant
-  services/     pdfService (pdf-parse), claudeService (scoring), supabaseService (persistence)
+  services/     pdfService (pdf-parse, storage-only text extraction), claudeService (native-PDF scoring), supabaseService (persistence)
   routes/       analyze.ts (POST), analyses.ts (GET list/detail)
   schemas.ts    Zod schema shared between the Claude structured-output call and request validation
 
 client/src/
   lib/          api.ts (fetch wrappers), types.ts (shared with server's DB row shape, kept in sync by hand)
-  components/   UploadForm, ScoreGauge (SVG ring), StrengthsGapsList, AnalysisResultView (composes the two)
+  components/   UploadForm, ScoreGauge (SVG ring), RecommendationBadge, CriteriaBreakdown,
+                 SkillsMatrixTable, StrengthsGapsList, InterviewQuestions, AnalysisResultView (composes all of the above)
   pages/        Home, History, ResultDetail
   App.tsx       view-state navigation + nav bar
 ```
 
 ## Data model
 
-See `server/supabase/schema.sql` for the authoritative definition. `analyses`: one row per analysis run, no foreign keys, no auth — `resume_text`/`jd_text` stored in full so history detail views don't need to re-parse anything.
+See `server/supabase/schema.sql` for the authoritative definition. `analyses`: one row per analysis run, no foreign keys, no auth — `resume_text`/`jd_text` stored in full so history detail views don't need to re-parse anything. `criteria`, `skills_matrix`, `interview_questions` are jsonb arrays matching the Claude structured-output shape 1:1; `strengths`/`gaps` are jsonb arrays of `{point, evidence}` objects, not plain strings.

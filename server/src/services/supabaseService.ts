@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase.js";
-import type { AnalysisResult } from "../schemas.js";
+import type { AnalysisResult, Recommendation } from "../schemas.js";
 
 export interface AnalysisRow {
   id: string;
@@ -8,14 +8,18 @@ export interface AnalysisRow {
   resume_filename: string;
   jd_text: string;
   match_score: number;
-  strengths: string[];
-  gaps: string[];
+  recommendation: Recommendation;
+  criteria: AnalysisResult["criteria"];
+  skills_matrix: AnalysisResult["skillsMatrix"];
+  strengths: AnalysisResult["strengths"];
+  gaps: AnalysisResult["gaps"];
+  interview_questions: string[];
   summary: string;
 }
 
 export type AnalysisListItem = Pick<
   AnalysisRow,
-  "id" | "created_at" | "resume_filename" | "match_score"
+  "id" | "created_at" | "resume_filename" | "match_score" | "recommendation"
 >;
 
 export class SupabaseServiceError extends Error {}
@@ -33,8 +37,12 @@ export async function saveAnalysis(input: {
       resume_filename: input.resumeFilename,
       jd_text: input.jdText,
       match_score: input.result.matchScore,
+      recommendation: input.result.recommendation,
+      criteria: input.result.criteria,
+      skills_matrix: input.result.skillsMatrix,
       strengths: input.result.strengths,
       gaps: input.result.gaps,
+      interview_questions: input.result.interviewQuestions,
       summary: input.result.summary,
     })
     .select()
@@ -50,7 +58,7 @@ export async function saveAnalysis(input: {
 export async function listAnalyses(): Promise<AnalysisListItem[]> {
   const { data, error } = await supabase
     .from("analyses")
-    .select("id, created_at, resume_filename, match_score")
+    .select("id, created_at, resume_filename, match_score, recommendation")
     .order("created_at", { ascending: false });
 
   if (error) {

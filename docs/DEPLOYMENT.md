@@ -42,4 +42,4 @@ v1 currently runs local-only (`npm run dev` in both `client/` and `server/`). No
 
 Model: `claude-sonnet-4-6` — $3/1M input tokens, $15/1M output tokens.
 
-Per analysis: ~1,500–2,500 input tokens (system prompt + resume + JD + schema), ~300–600 output tokens (score + strengths + gaps + summary) → **roughly $0.01–0.02 per analysis**. $5 of credit ≈ 250–400 analyses.
+As of the v2 scorecard, the resume PDF is sent to Claude natively (a `document` content block) instead of as extracted plain text — Claude reads the actual PDF layout, which costs somewhat more in input tokens than plain text but meaningfully improves accuracy on non-trivial resume formatting. The richer output (per-criterion breakdown, skills matrix, interview questions) also runs larger than the v1 output. Still cents per analysis — $5 of credit comfortably covers ongoing testing and normal use, just don't assume the original ~250–400 analyses/$5 estimate holds exactly; re-check actual usage in the Anthropic console after a batch of real runs if precise budgeting matters.

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchAnalyses, ApiError } from "../lib/api";
+import { RecommendationBadge } from "../components/RecommendationBadge";
 import type { AnalysisListItem } from "../lib/types";
 
 interface HistoryProps {
@@ -72,11 +73,14 @@ export function History({ onSelect, refreshKey }: HistoryProps) {
                   {new Date(a.created_at).toLocaleString()}
                 </p>
               </div>
-              <span
-                className={`rounded-full px-3 py-1 text-sm font-semibold ${scoreClasses(a.match_score)}`}
-              >
-                {a.match_score}
-              </span>
+              <div className="flex items-center gap-3">
+                <RecommendationBadge recommendation={a.recommendation} />
+                <span
+                  className={`rounded-full px-3 py-1 text-sm font-semibold ${scoreClasses(a.match_score)}`}
+                >
+                  {a.match_score}
+                </span>
+              </div>
             </button>
           </li>
         ))}

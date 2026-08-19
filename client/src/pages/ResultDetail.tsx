@@ -62,10 +62,14 @@ export function ResultDetail({ id, onBack }: ResultDetailProps) {
             </p>
           </div>
           <AnalysisResultView
-            matchScore={analysis.match_score}
+            match_score={analysis.match_score}
+            recommendation={analysis.recommendation}
             summary={analysis.summary}
+            criteria={analysis.criteria}
+            skills_matrix={analysis.skills_matrix}
             strengths={analysis.strengths}
             gaps={analysis.gaps}
+            interview_questions={analysis.interview_questions}
           />
         </div>
       )}

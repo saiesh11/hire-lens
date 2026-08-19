@@ -5,30 +5,47 @@ import { analysisResultSchema, type AnalysisResult } from "../schemas.js";
 
 export class ClaudeAnalysisError extends Error {}
 
-const SYSTEM_PROMPT = `You are a recruitment screening assistant. You are given a candidate's resume text and a job description. Assess how well the candidate matches the role.
+const SYSTEM_PROMPT = `You are a recruitment screening assistant producing a structured, evidence-based candidate evaluation for a hiring team's standardized recruiting scorecard. You will receive the candidate's resume as a PDF document and a job description as text.
 
 Return your assessment as JSON matching the required schema:
-- matchScore: an integer 0-100 rating overall fit
-- strengths: specific ways the resume matches the job description (skills, experience, achievements)
-- gaps: specific requirements from the job description the resume does not clearly demonstrate
-- summary: a one-paragraph plain-language summary of the fit, written for a hiring manager
 
-Base your assessment only on what is actually stated in the resume and job description. Be specific and reference concrete details rather than generic statements.`;
+- criteria: Identify the evaluation dimensions that actually matter for this specific job description (e.g. "Technical Skills", "Years of Experience", "Education", "Domain Knowledge", "Leadership" — choose what's relevant, don't force a fixed template). For each, classify it as "required" or "preferred" based on the job description's own language ("must have" / "required" vs. "nice to have" / "preferred" / "a plus"), score it 0-100 based on how well the resume evidences it, and give a short note explaining the score.
+- matchScore: your overall 0-100 assessment, weighted so that "required" criteria matter more than "preferred" ones.
+- recommendation: "strong_match", "possible_match", or "not_a_match" — a categorical triage recommendation matching how a recruiter would actually sort candidates, not just a restatement of the score.
+- skillsMatrix: for every skill, technology, or qualification explicitly named in the job description, report its status as "present", "partial", or "missing" in the resume, with a short evidence note.
+- strengths and gaps: each item needs a "point" (the claim) and "evidence" (the specific resume or job description language that backs it up — quote or closely paraphrase the actual text). Do not make a claim you cannot ground in what's actually in front of you.
+- interviewQuestions: 3-5 targeted questions an interviewer could ask to specifically probe the identified gaps.
+- summary: one paragraph, plain language, written for a hiring manager.
+
+Fairness: base every judgment strictly on job-relevant qualifications actually stated in the resume and job description. Do not infer or factor in age, gender, race, national origin, disability status, marital or family status, or other protected characteristics, even indirectly (e.g. treating graduation year as an age proxy). If the resume lacks information relevant to a criterion, say so plainly rather than guessing.`;
 
 export async function analyzeResumeAgainstJob(
-  resumeText: string,
+  resumePdf: Buffer,
   jobDescription: string,
 ): Promise<AnalysisResult> {
   let response;
   try {
     response = await anthropic.messages.parse({
       model: CLAUDE_MODEL,
-      max_tokens: 4096,
+      max_tokens: 8192,
       system: SYSTEM_PROMPT,
       messages: [
         {
           role: "user",
-          content: `<resume>\n${resumeText}\n</resume>\n\n<job_description>\n${jobDescription}\n</job_description>`,
+          content: [
+            {
+              type: "document",
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data: resumePdf.toString("base64"),
+              },
+            },
+            {
+              type: "text",
+              text: `<job_description>\n${jobDescription}\n</job_description>`,
+            },
+          ],
         },
       ],
       output_config: {
@@ -39,7 +56,7 @@ export async function analyzeResumeAgainstJob(
     if (error instanceof Anthropic.APIError) {
       console.error("Claude API request failed:", error);
       throw new ClaudeAnalysisError(
-        "The AI analysis service is temporarily unavailable. Please try again in a moment.",
+        "Could not analyze this resume. Please check that the PDF is valid, or try again in a moment.",
       );
     }
     throw error;
