@@ -76,3 +76,9 @@ The client dev server proxies `/api/*` to `http://localhost:3001`, so no client-
 ## Scope (v1)
 
 No auth, no multi-resume comparison, no resume builder, no payments. Single-user, single-flow: upload → analyze → view → history.
+
+## More docs
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — request flow, design decisions and why, a Supabase RLS gotcha worth knowing about
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — hosting plan and cost estimate for when this goes on a real domain
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — what v1 covers vs. the v2 direction (better UI, structured review output, model/accuracy work)
