@@ -1,0 +1,53 @@
+import { Router } from "express";
+import multer from "multer";
+import { analyzeRequestSchema } from "../schemas.js";
+import { extractResumeText, PdfParseError } from "../services/pdfService.js";
+import { analyzeResumeAgainstJob, ClaudeAnalysisError } from "../services/claudeService.js";
+import { saveAnalysis, SupabaseServiceError } from "../services/supabaseService.js";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+export const analyzeRouter = Router();
+
+analyzeRouter.post("/analyze", upload.single("resume"), async (req, res) => {
+  const file = req.file;
+  if (!file) {
+    return res.status(400).json({ error: "A resume PDF file is required" });
+  }
+  if (file.mimetype !== "application/pdf") {
+    return res.status(400).json({ error: "Resume must be a PDF file" });
+  }
+
+  const parsedBody = analyzeRequestSchema.safeParse(req.body);
+  if (!parsedBody.success) {
+    return res.status(400).json({ error: parsedBody.error.issues[0]?.message ?? "Invalid request" });
+  }
+  const { jobDescription } = parsedBody.data;
+
+  try {
+    const resumeText = await extractResumeText(file.buffer);
+    const result = await analyzeResumeAgainstJob(resumeText, jobDescription);
+    const saved = await saveAnalysis({
+      resumeText,
+      resumeFilename: file.originalname,
+      jdText: jobDescription,
+      result,
+    });
+    return res.status(201).json(saved);
+  } catch (error) {
+    if (error instanceof PdfParseError) {
+      return res.status(400).json({ error: error.message });
+    }
+    if (error instanceof ClaudeAnalysisError) {
+      return res.status(502).json({ error: error.message });
+    }
+    if (error instanceof SupabaseServiceError) {
+      return res.status(500).json({ error: "Failed to save analysis" });
+    }
+    console.error("Unexpected error in /api/analyze:", error);
+    return res.status(500).json({ error: "Something went wrong analyzing the resume" });
+  }
+});
