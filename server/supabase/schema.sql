@@ -16,7 +16,8 @@ create table if not exists analyses (
   strengths jsonb not null default '[]'::jsonb,
   gaps jsonb not null default '[]'::jsonb,
   interview_questions jsonb not null default '[]'::jsonb,
-  summary text not null
+  summary text not null,
+  user_id text
 );
 
 -- v2: structured scorecard columns, for tables created before this migration.
@@ -27,14 +28,18 @@ alter table analyses add column if not exists interview_questions jsonb not null
 -- strengths/gaps are still jsonb arrays, but each element is now
 -- {point, evidence} instead of a plain string — no column change needed.
 
+-- Phase 0 (auth): Clerk user IDs are strings like "user_2abc..." — not
+-- Postgres uuid. Nullable, not backfilled: rows created before auth existed
+-- have no real owner, and stay invisible once every read/write is scoped by
+-- user_id in application code (see supabaseService.ts) rather than deleted.
+alter table analyses add column if not exists user_id text;
+create index if not exists analyses_user_id_idx on analyses (user_id);
+
 create index if not exists analyses_created_at_idx on analyses (created_at desc);
 
 -- New Supabase projects auto-enable RLS on new tables by default. This app
--- has no auth in v1, so explicitly disable it (the anon key is used server-side
--- as the only writer/reader) rather than leave the table silently locked.
+-- has no client-side Supabase access — the anon key is used server-side only,
+-- and every query is explicitly scoped by user_id in application code
+-- (Clerk verifies identity in Express; see docs/ARCHITECTURE.md). RLS stays
+-- off because Express is the enforcement point, not because there's no auth.
 alter table analyses disable row level security;
-
--- No RLS/auth in v1 (no login). To add auth later without a redesign:
---   1. add a `user_id uuid references auth.users(id)` column
---   2. alter table analyses enable row level security;
---   3. add policies scoped to auth.uid() = user_id

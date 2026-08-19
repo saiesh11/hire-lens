@@ -1,1 +1,74 @@
 @import "tailwindcss";
+
+@keyframes hl-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes hl-slide-in-file {
+  0% {
+    transform: translate(-150px, 0px) rotate(0deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-24px, 6px) rotate(-4deg);
+    opacity: 1;
+  }
+}
+
+@keyframes hl-file-bob {
+  0%,
+  100% {
+    transform: translate(-24px, 6px) rotate(-4deg);
+  }
+  50% {
+    transform: translate(-24px, 1px) rotate(-2deg);
+  }
+}
+
+@keyframes hl-slide-in-glass {
+  0% {
+    transform: translate(150px, -14px) rotate(-12deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(26px, -14px) rotate(-12deg);
+    opacity: 1;
+  }
+}
+
+@keyframes hl-scan-loop {
+  0% {
+    transform: translate(26px, -14px) rotate(-12deg);
+  }
+  25% {
+    transform: translate(36px, -4px) rotate(-4deg);
+  }
+  50% {
+    transform: translate(16px, 8px) rotate(-18deg);
+  }
+  75% {
+    transform: translate(32px, 0px) rotate(-8deg);
+  }
+  100% {
+    transform: translate(26px, -14px) rotate(-12deg);
+  }
+}
+
+@keyframes hl-fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

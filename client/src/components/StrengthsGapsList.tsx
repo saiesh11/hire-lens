@@ -24,11 +24,11 @@ function EvidenceList({ items, emptyText }: { items: EvidenceItem[]; emptyText: 
 export function StrengthsGapsList({ strengths, gaps }: StrengthsGapsListProps) {
   return (
     <div className="grid gap-6 sm:grid-cols-2">
-      <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-green-900">
+      <div className="rounded-2xl border border-green-200 bg-green-50 p-5 text-green-900 shadow-sm">
         <h3 className="mb-3 font-semibold text-green-800">Strengths</h3>
         <EvidenceList items={strengths} emptyText="No specific strengths identified." />
       </div>
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-900 shadow-sm">
         <h3 className="mb-3 font-semibold text-amber-800">Gaps</h3>
         <EvidenceList items={gaps} emptyText="No significant gaps identified." />
       </div>

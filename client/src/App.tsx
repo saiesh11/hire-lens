@@ -1,10 +1,21 @@
 import { useState } from "react";
+import { SignedIn, SignedOut, SignIn, UserButton } from "@clerk/clerk-react";
 import { Home } from "./pages/Home";
 import { History } from "./pages/History";
 import { ResultDetail } from "./pages/ResultDetail";
 import type { AnalysisDetail } from "./lib/types";
 
 type View = { name: "home" } | { name: "history" } | { name: "detail"; id: string };
+
+function LensMark() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6 text-indigo-600" fill="none">
+      <circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" strokeWidth="2" />
+      <circle cx="10.5" cy="10.5" r="3" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+      <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 function NavBar({
   active,
@@ -14,27 +25,41 @@ function NavBar({
   onNavigate: (name: "home" | "history") => void;
 }) {
   const linkClasses = (name: "home" | "history") =>
-    `px-3 py-2 text-sm font-medium rounded-md ${
+    `rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
       active === name
         ? "bg-indigo-100 text-indigo-700"
-        : "text-gray-600 hover:text-gray-900"
+        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
     }`;
 
   return (
-    <nav className="border-b border-gray-200 bg-white">
-      <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 py-3">
-        <button onClick={() => onNavigate("home")} className={linkClasses("home")}>
-          Home
+    <nav className="sticky top-0 z-10 border-b border-gray-200 bg-white/80 backdrop-blur">
+      <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
+        <button
+          onClick={() => onNavigate("home")}
+          className="flex items-center gap-2 text-base font-semibold text-gray-900"
+        >
+          <LensMark />
+          HireLens
         </button>
-        <button onClick={() => onNavigate("history")} className={linkClasses("history")}>
-          History
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            <button onClick={() => onNavigate("home")} className={linkClasses("home")}>
+              Home
+            </button>
+            <button onClick={() => onNavigate("history")} className={linkClasses("history")}>
+              History
+            </button>
+          </div>
+          <SignedIn>
+            <UserButton afterSignOutUrl="/" />
+          </SignedIn>
+        </div>
       </div>
     </nav>
   );
 }
 
-function App() {
+function AppContent() {
   const [view, setView] = useState<View>({ name: "home" });
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
@@ -64,6 +89,25 @@ function App() {
         <ResultDetail id={view.id} onBack={() => setView({ name: "history" })} />
       )}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <>
+      <SignedIn>
+        <AppContent />
+      </SignedIn>
+      <SignedOut>
+        <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-gray-50 px-4">
+          <div className="flex items-center gap-2 text-xl font-semibold text-gray-900">
+            <LensMark />
+            HireLens
+          </div>
+          <SignIn />
+        </div>
+      </SignedOut>
+    </>
   );
 }
 

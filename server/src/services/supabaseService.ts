@@ -15,6 +15,7 @@ export interface AnalysisRow {
   gaps: AnalysisResult["gaps"];
   interview_questions: string[];
   summary: string;
+  user_id: string;
 }
 
 export type AnalysisListItem = Pick<
@@ -25,6 +26,7 @@ export type AnalysisListItem = Pick<
 export class SupabaseServiceError extends Error {}
 
 export async function saveAnalysis(input: {
+  userId: string;
   resumeText: string;
   resumeFilename: string;
   jdText: string;
@@ -33,6 +35,7 @@ export async function saveAnalysis(input: {
   const { data, error } = await supabase
     .from("analyses")
     .insert({
+      user_id: input.userId,
       resume_text: input.resumeText,
       resume_filename: input.resumeFilename,
       jd_text: input.jdText,
@@ -55,10 +58,11 @@ export async function saveAnalysis(input: {
   return data as AnalysisRow;
 }
 
-export async function listAnalyses(): Promise<AnalysisListItem[]> {
+export async function listAnalyses(userId: string): Promise<AnalysisListItem[]> {
   const { data, error } = await supabase
     .from("analyses")
     .select("id, created_at, resume_filename, match_score, recommendation")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -68,11 +72,12 @@ export async function listAnalyses(): Promise<AnalysisListItem[]> {
   return data ?? [];
 }
 
-export async function getAnalysisById(id: string): Promise<AnalysisRow | null> {
+export async function getAnalysisById(id: string, userId: string): Promise<AnalysisRow | null> {
   const { data, error } = await supabase
     .from("analyses")
     .select("*")
     .eq("id", id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (error) {

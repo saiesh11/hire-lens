@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchAnalyses, ApiError } from "../lib/api";
+import { useApi, ApiError } from "../lib/api";
 import { RecommendationBadge } from "../components/RecommendationBadge";
 import type { AnalysisListItem } from "../lib/types";
 
@@ -15,6 +15,7 @@ function scoreClasses(score: number): string {
 }
 
 export function History({ onSelect, refreshKey }: HistoryProps) {
+  const { fetchAnalyses } = useApi();
   const [analyses, setAnalyses] = useState<AnalysisListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,37 +44,37 @@ export function History({ onSelect, refreshKey }: HistoryProps) {
   }, [refreshKey]);
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="mb-6 text-2xl font-bold text-gray-900">History</h1>
+    <div className="mx-auto max-w-2xl px-4 py-12">
+      <h1 className="mb-6 text-2xl font-bold tracking-tight text-gray-900">History</h1>
 
       {isLoading && <p className="text-sm text-gray-500">Loading...</p>}
 
       {error && (
-        <p className="rounded-md bg-red-50 p-3 text-sm text-red-700" role="alert">
+        <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">
           {error}
         </p>
       )}
 
       {!isLoading && !error && analyses.length === 0 && (
-        <p className="text-sm text-gray-500">
-          No analyses yet. Run one from the Home page.
-        </p>
+        <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center">
+          <p className="text-sm text-gray-500">No analyses yet. Run one from the Home page.</p>
+        </div>
       )}
 
-      <ul className="flex flex-col gap-2">
+      <ul className="flex flex-col gap-3">
         {analyses.map((a) => (
           <li key={a.id}>
             <button
               onClick={() => onSelect(a.id)}
-              className="flex w-full items-center justify-between rounded-md border border-gray-200 p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-50"
+              className="flex w-full items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md sm:p-5"
             >
-              <div>
-                <p className="font-medium text-gray-900">{a.resume_filename}</p>
+              <div className="min-w-0">
+                <p className="truncate font-medium text-gray-900">{a.resume_filename}</p>
                 <p className="text-sm text-gray-500">
                   {new Date(a.created_at).toLocaleString()}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex shrink-0 items-center gap-3">
                 <RecommendationBadge recommendation={a.recommendation} />
                 <span
                   className={`rounded-full px-3 py-1 text-sm font-semibold ${scoreClasses(a.match_score)}`}

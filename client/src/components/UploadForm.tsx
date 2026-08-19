@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 interface UploadFormProps {
@@ -10,9 +10,10 @@ export function UploadForm({ onSubmit, isSubmitting }: UploadFormProps) {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
+  function applyFile(file: File | null) {
     if (file && file.type !== "application/pdf") {
       setValidationError("Please upload a PDF file");
       setResumeFile(null);
@@ -39,24 +40,66 @@ export function UploadForm({ onSubmit, isSubmitting }: UploadFormProps) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       <div>
-        <label htmlFor="resume" className="mb-1 block text-sm font-medium text-gray-700">
-          Resume (PDF)
-        </label>
+        <label className="mb-1.5 block text-sm font-medium text-gray-700">Resume (PDF)</label>
         <input
+          ref={fileInputRef}
           id="resume"
           type="file"
           accept="application/pdf"
-          onChange={handleFileChange}
+          onChange={(e) => applyFile(e.target.files?.[0] ?? null)}
           disabled={isSubmitting}
-          className="block w-full rounded-md border border-gray-300 text-sm file:mr-4 file:rounded-md file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
+          className="hidden"
         />
-        {resumeFile && (
-          <p className="mt-1 text-sm text-gray-500">Selected: {resumeFile.name}</p>
-        )}
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+            applyFile(e.dataTransfer.files?.[0] ?? null);
+          }}
+          disabled={isSubmitting}
+          className={`flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors ${
+            isDragging
+              ? "border-indigo-400 bg-indigo-50"
+              : resumeFile
+                ? "border-indigo-200 bg-indigo-50/50"
+                : "border-gray-300 bg-gray-50 hover:border-indigo-300 hover:bg-indigo-50/40"
+          } disabled:cursor-not-allowed disabled:opacity-60`}
+        >
+          <svg viewBox="0 0 24 24" className="h-7 w-7 text-indigo-500" fill="none">
+            <path
+              d="M12 16V4m0 0L7 9m5-5l5 5"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          {resumeFile ? (
+            <span className="text-sm font-medium text-indigo-700">{resumeFile.name}</span>
+          ) : (
+            <span className="text-sm text-gray-500">
+              <span className="font-medium text-indigo-600">Click to upload</span> or drag and drop a PDF
+            </span>
+          )}
+        </button>
       </div>
 
       <div>
-        <label htmlFor="jd" className="mb-1 block text-sm font-medium text-gray-700">
+        <label htmlFor="jd" className="mb-1.5 block text-sm font-medium text-gray-700">
           Job Description
         </label>
         <textarea
@@ -66,7 +109,7 @@ export function UploadForm({ onSubmit, isSubmitting }: UploadFormProps) {
           disabled={isSubmitting}
           rows={10}
           placeholder="Paste the job description here..."
-          className="block w-full rounded-md border border-gray-300 p-3 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+          className="block w-full rounded-xl border border-gray-300 bg-white p-3.5 text-sm shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
         />
       </div>
 
@@ -79,7 +122,7 @@ export function UploadForm({ onSubmit, isSubmitting }: UploadFormProps) {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="rounded-md bg-indigo-600 px-4 py-2.5 font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
+        className="rounded-xl bg-indigo-600 px-4 py-3 font-medium text-white shadow-sm transition hover:bg-indigo-700 hover:shadow disabled:cursor-not-allowed disabled:bg-indigo-300 disabled:shadow-none"
       >
         {isSubmitting ? "Analyzing..." : "Analyze"}
       </button>

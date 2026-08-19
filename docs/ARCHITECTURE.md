@@ -28,6 +28,16 @@ CriteriaBreakdown, SkillsMatrixTable, StrengthsGapsList, InterviewQuestions
 
 `GET /api/analyses` and `GET /api/analyses/:id` read straight from Supabase, no Claude involved.
 
+## Auth (Phase 0 of the SaaS rebuild)
+
+Clerk verifies identity; Express stays the sole trust boundary — the client never talks to Supabase directly, it only ever calls this Express API, so there was no reason to stand up Supabase's separate Clerk↔JWT third-party-auth bridge or per-row RLS policies. The pattern:
+
+- `clerkMiddleware()` runs globally in `server/src/index.ts`, attaching the verified session to every request.
+- Each protected route reads `getAuth(req).userId` directly (not the deprecated `requireAuth()` — that redirects to a sign-in page, which doesn't make sense for a JSON API; a plain `401` is correct here) and 401s if there's no signed-in user.
+- Every `supabaseService.ts` function takes a `userId` and adds `.eq('user_id', userId)` — the multi-tenant boundary is enforced in application code, not the database.
+- On the client, `lib/api.ts`'s fetch wrappers became a `useApi()` hook (Clerk's `getToken()` is only available inside components under `<ClerkProvider>`) that attaches `Authorization: Bearer <token>` to every request.
+- `analyses.user_id` is a nullable `text` column (Clerk IDs are strings like `user_2abc...`, not `uuid`) — pre-auth rows have no owner and were left alone rather than backfilled; they're simply invisible now that every query is user-scoped.
+
 ## Why these choices
 
 - **`client.messages.parse()` + `zodOutputFormat()` instead of prompting for JSON and parsing manually.** The brief's original plan was "ask Claude for JSON only, strip markdown fences before `JSON.parse`." The Anthropic SDK has a structured-outputs helper (`output_config.format`) that validates the response against a Zod schema server-side — same schema (`schemas.ts`) is reused for both the Claude call and (implicitly) the DB row shape. Removes an entire class of "Claude wrapped it in a code fence" bugs.
@@ -39,7 +49,7 @@ CriteriaBreakdown, SkillsMatrixTable, StrengthsGapsList, InterviewQuestions
 
 ## Known gotcha: Supabase auto-enables RLS on new tables
 
-`server/supabase/schema.sql` does not call `ENABLE ROW LEVEL SECURITY` — the brief explicitly wanted no auth/RLS for v1. But newer Supabase projects auto-enable RLS on every new table by default regardless of what SQL you run, which silently blocks all reads/writes via the anon key with a `42501` error. The schema now explicitly runs `alter table analyses disable row level security;` to counter this. If a fresh Supabase project starts throwing RLS errors again, that's why — Supabase's default may have changed again.
+`server/supabase/schema.sql` explicitly runs `alter table analyses disable row level security;` — newer Supabase projects auto-enable RLS on every new table by default regardless of what SQL you run, which silently blocks all reads/writes via the anon key with a `42501` error otherwise. This is *still* correct post-auth (see above): RLS being off isn't "no auth," it's "Express enforces the boundary instead of Postgres." If a fresh Supabase project starts throwing RLS errors again, that's why — Supabase's default may have changed again.
 
 ## File map
 
@@ -51,13 +61,14 @@ server/src/
   schemas.ts    Zod schema shared between the Claude structured-output call and request validation
 
 client/src/
-  lib/          api.ts (fetch wrappers), types.ts (shared with server's DB row shape, kept in sync by hand)
+  lib/          api.ts (useApi() hook — token-attached fetch wrappers), types.ts (shared with server's DB row shape, kept in sync by hand)
   components/   UploadForm, ScoreGauge (SVG ring), RecommendationBadge, CriteriaBreakdown,
                  SkillsMatrixTable, StrengthsGapsList, InterviewQuestions, AnalysisResultView (composes all of the above)
   pages/        Home, History, ResultDetail
-  App.tsx       view-state navigation + nav bar
+  App.tsx       SignedIn/SignedOut gating (Clerk), view-state navigation + nav bar
+  main.tsx      wraps the app in <ClerkProvider>
 ```
 
 ## Data model
 
-See `server/supabase/schema.sql` for the authoritative definition. `analyses`: one row per analysis run, no foreign keys, no auth — `resume_text`/`jd_text` stored in full so history detail views don't need to re-parse anything. `criteria`, `skills_matrix`, `interview_questions` are jsonb arrays matching the Claude structured-output shape 1:1; `strengths`/`gaps` are jsonb arrays of `{point, evidence}` objects, not plain strings.
+See `server/supabase/schema.sql` for the authoritative definition. `analyses`: one row per analysis run, scoped by `user_id` (nullable `text`, Clerk ID) — `resume_text`/`jd_text` stored in full so history detail views don't need to re-parse anything. `criteria`, `skills_matrix`, `interview_questions` are jsonb arrays matching the Claude structured-output shape 1:1; `strengths`/`gaps` are jsonb arrays of `{point, evidence}` objects, not plain strings.

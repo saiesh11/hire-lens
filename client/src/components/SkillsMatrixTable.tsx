@@ -10,7 +10,7 @@ export function SkillsMatrixTable({ entries }: { entries: SkillMatrixEntry[] }) 
   if (entries.length === 0) return null;
 
   return (
-    <div className="rounded-lg border border-gray-200 p-4">
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
       <h3 className="mb-4 font-semibold text-gray-900">Skills Matrix</h3>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">

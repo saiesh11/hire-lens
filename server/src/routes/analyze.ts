@@ -1,5 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
+import { getAuth } from "@clerk/express";
 import { analyzeRequestSchema } from "../schemas.js";
 import { extractResumeText } from "../services/pdfService.js";
 import { analyzeResumeAgainstJob, ClaudeAnalysisError } from "../services/claudeService.js";
@@ -13,6 +14,11 @@ const upload = multer({
 export const analyzeRouter = Router();
 
 analyzeRouter.post("/analyze", upload.single("resume"), async (req, res) => {
+  const { userId } = getAuth(req);
+  if (!userId) {
+    return res.status(401).json({ error: "Sign in to analyze a resume" });
+  }
+
   const file = req.file;
   if (!file) {
     return res.status(400).json({ error: "A resume PDF file is required" });
@@ -40,6 +46,7 @@ analyzeRouter.post("/analyze", upload.single("resume"), async (req, res) => {
     ]);
 
     const saved = await saveAnalysis({
+      userId,
       resumeText: extractedText,
       resumeFilename: file.originalname,
       jdText: jobDescription,
@@ -51,6 +58,7 @@ analyzeRouter.post("/analyze", upload.single("resume"), async (req, res) => {
       return res.status(502).json({ error: error.message });
     }
     if (error instanceof SupabaseServiceError) {
+      console.error("Failed to save analysis:", error);
       return res.status(500).json({ error: "Failed to save analysis" });
     }
     console.error("Unexpected error in /api/analyze:", error);

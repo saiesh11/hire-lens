@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchAnalysis, ApiError } from "../lib/api";
+import { useApi, ApiError } from "../lib/api";
 import { AnalysisResultView } from "../components/AnalysisResultView";
 import type { AnalysisDetail } from "../lib/types";
 
@@ -9,6 +9,7 @@ interface ResultDetailProps {
 }
 
 export function ResultDetail({ id, onBack }: ResultDetailProps) {
+  const { fetchAnalysis } = useApi();
   const [analysis, setAnalysis] = useState<AnalysisDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,10 +38,10 @@ export function ResultDetail({ id, onBack }: ResultDetailProps) {
   }, [id]);
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
+    <div className="mx-auto max-w-2xl px-4 py-12">
       <button
         onClick={onBack}
-        className="mb-6 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+        className="mb-6 flex items-center gap-1 text-sm font-medium text-indigo-600 transition hover:text-indigo-800"
       >
         ← Back to History
       </button>
@@ -48,15 +49,15 @@ export function ResultDetail({ id, onBack }: ResultDetailProps) {
       {isLoading && <p className="text-sm text-gray-500">Loading...</p>}
 
       {error && (
-        <p className="rounded-md bg-red-50 p-3 text-sm text-red-700" role="alert">
+        <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">
           {error}
         </p>
       )}
 
       {analysis && !isLoading && (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6" style={{ animation: "hl-fade-up 0.3s ease-out" }}>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">{analysis.resume_filename}</h1>
+            <h1 className="text-xl font-bold tracking-tight text-gray-900">{analysis.resume_filename}</h1>
             <p className="text-sm text-gray-500">
               {new Date(analysis.created_at).toLocaleString()}
             </p>

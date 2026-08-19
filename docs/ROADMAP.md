@@ -4,28 +4,38 @@
 
 Everything in the original brief: upload PDF + JD → Claude score/strengths/gaps/summary → saved to Supabase → history list → detail view. No auth, no multi-resume comparison, no resume builder, no payments. Verified end-to-end with real credentials — see git log for `Add Express + TypeScript API for HireLens v1`.
 
-## v2 step 1: structured scorecard + evidence grounding + native PDF reading (shipped)
+## v2: structured scorecard + evidence grounding + native PDF reading + UI polish (shipped)
 
-Delivered two of the three stated v2 pillars — see `ARCHITECTURE.md` for the shape and prompt details:
+- **Structured, company-standard review output.** Weighted per-criterion breakdown (`required` vs `preferred`, 0-100 each with notes), categorical `recommendation` (strong_match / possible_match / not_a_match), a skills matrix (present/partial/missing per named skill), suggested interview questions. Every strength/gap carries `{point, evidence}` grounding the claim in the actual resume/JD text.
+- **Accuracy: native PDF input.** Claude reads the resume PDF directly via a `document` content block instead of `pdf-parse` text extraction for scoring.
+- **Bias-safety instruction** in the system prompt: score only on job-relevant qualifications.
+- **UI redesign:** cohesive card system, fixed a real overlap bug in `ScoreGauge` (was a negative-margin hack), a search-themed loading animation that overlays in place on the upload card (no scroll needed while waiting), auto-scroll to results on completion, drag-and-drop upload.
 
-- **Structured, company-standard review output.** Replaced flat `strengths[]`/`gaps[]` + one score with: weighted per-criterion breakdown (`required` vs `preferred`, each scored 0-100 with notes), a categorical `recommendation` (strong_match / possible_match / not_a_match), a skills matrix (present/partial/missing per named skill), and suggested interview questions targeting the identified gaps. Every strength/gap now carries a `point` + `evidence` pair grounding the claim in the actual resume/JD text.
-- **Accuracy: native PDF input.** Claude now reads the resume PDF directly via a `document` content block instead of going through `pdf-parse` text extraction for scoring. `pdf-parse` is still used, but only as a best-effort, non-fatal side extraction for the stored `resume_text` field — a bad extraction there no longer fails the request.
-- **Bias-safety instruction** added to the system prompt: score only on job-relevant qualifications, never infer protected characteristics.
+See `ARCHITECTURE.md` for implementation detail.
 
-Not yet done from the original three pillars: **UI redesign** ("top notch, well advanced"). The UI was extended with new components (criteria breakdown bars, skills matrix table, recommendation badges, interview question list) to surface the new data, but this was functional wiring, not a visual design pass.
+## v3: SaaS rebuild (in progress)
 
-## v2 step 2: UI redesign (not yet started)
+The user's friends reviewed v2 and pushed for a full pivot: auth, multi-tenancy, bulk processing, sorting/leaderboards, a shadcn/ui rebuild, LinkedIn scraping, and — last — a switch from Claude to Google Gemini. This is a re-architecture; full context, the phase sequencing rationale, and the legal flag on LinkedIn scraping are in the approved plan at the time: see git history around "Phase 0" commits, or ask to see the original plan if it's needed again.
 
-The richer data shape from step 1 is now stable, which was the blocker called out in the original recommendation ("redesigning UI before the output shape changes risks throwing it away"). Candidate ideas parked from the original brainstorm: animated score reveal, staged loading states, richer History (sort/filter/search + stats strip), side-by-side JD-vs-resume comparison view, drag-and-drop upload, dark mode, inline resume preview.
+Phases, in build order:
 
-## Beyond the three original pillars (not scoped)
+| # | Phase | Status |
+|---|---|---|
+| **0** | **Auth + multi-tenant foundation (Clerk)** | **In progress** — backend (`clerkMiddleware`, `getAuth`, `user_id`-scoped queries) and frontend (`ClerkProvider`, sign-in gating, token-attached `useApi()` hook) are wired; not yet live-tested against real Clerk credentials |
+| 1 | shadcn/ui migration | Not started |
+| 2 | Core data model + CRUD (jobs, candidates) | Not started |
+| 3 | Bulk profile upload, candidate sorting, leaderboard | Not started |
+| 4 | Account preferences / settings | Not started |
+| 5 | Organization settings + permissions *(optional)* | Not started |
+| 6 | LinkedIn/profile scraping pipeline *(legal risk flagged — public pages only, no login-bypass or anti-detection tooling; user should get legal review before production)* | Not started |
+| 7 | Dashboard optimization | Not started |
+| 8 | AI provider: Claude → Google Gemini *(user said: after everything else)* | Not started |
+| 9 | MCP integration *(optional, last)* | Not started |
 
-- **Multi-resume ranking against one JD** — score N resumes, get a ranked shortlist. Explicitly out of v1 scope but likely the highest-value recruiter-facing feature for a v3.
-- **JD structuring as its own step** — parse the JD into structured requirements before scoring, for more consistency across differently-phrased JDs.
+Each phase gets its own detailed plan when we reach it — planning phases 1–9 in file-level detail now would be stale by the time we get there, since early decisions (like phase 0's exact auth pattern) shape what later phases even look like.
 
 ## Known limitations (candidates for future scoping, not commitments)
 
-- No auth — anyone with the URL can see all history (fine for local/personal use, not fine for a shared deployment)
-- No multi-resume / multi-JD batch comparison
 - `client/src/lib/types.ts` and the server's DB row shape are kept in sync by hand, not shared — a real monorepo type-sharing setup would remove that drift risk
 - Not deployed anywhere — see `DEPLOYMENT.md`
+- Pre-auth `analyses` rows have `user_id = null` and are now invisible to everyone (not deleted, just orphaned — see `ARCHITECTURE.md`)

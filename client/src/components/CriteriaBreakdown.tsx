@@ -10,7 +10,7 @@ export function CriteriaBreakdown({ criteria }: { criteria: Criterion[] }) {
   if (criteria.length === 0) return null;
 
   return (
-    <div className="rounded-lg border border-gray-200 p-4">
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
       <h3 className="mb-4 font-semibold text-gray-900">Criteria Breakdown</h3>
       <div className="flex flex-col gap-4">
         {criteria.map((c, i) => (
@@ -32,7 +32,7 @@ export function CriteriaBreakdown({ criteria }: { criteria: Criterion[] }) {
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
               <div
-                className={`h-full rounded-full ${barColor(c.score)}`}
+                className={`h-full rounded-full transition-[width] duration-700 ease-out ${barColor(c.score)}`}
                 style={{ width: `${c.score}%` }}
               />
             </div>
