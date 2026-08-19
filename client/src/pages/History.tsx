@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useApi, ApiError } from "../lib/api";
 import { RecommendationBadge } from "../components/RecommendationBadge";
 import type { AnalysisListItem } from "../lib/types";
@@ -56,9 +58,11 @@ export function History({ onSelect, refreshKey }: HistoryProps) {
       )}
 
       {!isLoading && !error && analyses.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center">
-          <p className="text-sm text-gray-500">No analyses yet. Run one from the Home page.</p>
-        </div>
+        <Card className="rounded-2xl border-dashed">
+          <CardContent className="text-center">
+            <p className="text-sm text-gray-500">No analyses yet. Run one from the Home page.</p>
+          </CardContent>
+        </Card>
       )}
 
       <ul className="flex flex-col gap-3">
@@ -76,11 +80,9 @@ export function History({ onSelect, refreshKey }: HistoryProps) {
               </div>
               <div className="flex shrink-0 items-center gap-3">
                 <RecommendationBadge recommendation={a.recommendation} />
-                <span
-                  className={`rounded-full px-3 py-1 text-sm font-semibold ${scoreClasses(a.match_score)}`}
-                >
+                <Badge variant="outline" className={`h-auto rounded-full border-transparent px-3 py-1 text-sm font-semibold ${scoreClasses(a.match_score)}`}>
                   {a.match_score}
-                </span>
+                </Badge>
               </div>
             </button>
           </li>

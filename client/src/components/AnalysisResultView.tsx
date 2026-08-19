@@ -1,3 +1,4 @@
+import { Card, CardContent } from "@/components/ui/card";
 import { ScoreGauge } from "./ScoreGauge";
 import { RecommendationBadge } from "./RecommendationBadge";
 import { CriteriaBreakdown } from "./CriteriaBreakdown";
@@ -30,11 +31,13 @@ export function AnalysisResultView({
 }: AnalysisResultViewProps) {
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col items-center gap-3 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-        <ScoreGauge score={match_score} />
-        <RecommendationBadge recommendation={recommendation} />
-        <p className="mt-1 text-center text-gray-600">{summary}</p>
-      </div>
+      <Card className="rounded-2xl shadow-sm [--card-spacing:--spacing(6)] sm:[--card-spacing:--spacing(8)]">
+        <CardContent className="flex flex-col items-center gap-3">
+          <ScoreGauge score={match_score} />
+          <RecommendationBadge recommendation={recommendation} />
+          <p className="mt-1 text-center text-gray-600">{summary}</p>
+        </CardContent>
+      </Card>
       <CriteriaBreakdown criteria={criteria} />
       <SkillsMatrixTable entries={skills_matrix} />
       <StrengthsGapsList strengths={strengths} gaps={gaps} />

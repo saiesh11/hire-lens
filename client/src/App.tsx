@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { SignedIn, SignedOut, SignIn, UserButton } from "@clerk/clerk-react";
+import { Button } from "@/components/ui/button";
 import { Home } from "./pages/Home";
 import { History } from "./pages/History";
 import { ResultDetail } from "./pages/ResultDetail";
@@ -25,9 +26,9 @@ function NavBar({
   onNavigate: (name: "home" | "history") => void;
 }) {
   const linkClasses = (name: "home" | "history") =>
-    `rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+    `h-auto rounded-md px-3 py-1.5 text-sm font-medium ${
       active === name
-        ? "bg-indigo-100 text-indigo-700"
+        ? "bg-indigo-100 text-indigo-700 hover:bg-indigo-100"
         : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
     }`;
 
@@ -43,12 +44,12 @@ function NavBar({
         </button>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
-            <button onClick={() => onNavigate("home")} className={linkClasses("home")}>
+            <Button variant="ghost" onClick={() => onNavigate("home")} className={linkClasses("home")}>
               Home
-            </button>
-            <button onClick={() => onNavigate("history")} className={linkClasses("history")}>
+            </Button>
+            <Button variant="ghost" onClick={() => onNavigate("history")} className={linkClasses("history")}>
               History
-            </button>
+            </Button>
           </div>
           <SignedIn>
             <UserButton afterSignOutUrl="/" />

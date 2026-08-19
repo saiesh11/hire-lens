@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import type { Recommendation } from "../lib/types";
 
 const CONFIG: Record<Recommendation, { label: string; classes: string }> = {
@@ -9,10 +10,8 @@ const CONFIG: Record<Recommendation, { label: string; classes: string }> = {
 export function RecommendationBadge({ recommendation }: { recommendation: Recommendation }) {
   const config = CONFIG[recommendation];
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-semibold ${config.classes}`}
-    >
+    <Badge variant="outline" className={`h-auto rounded-full px-3 py-1 text-sm font-semibold ${config.classes}`}>
       {config.label}
-    </span>
+    </Badge>
   );
 }

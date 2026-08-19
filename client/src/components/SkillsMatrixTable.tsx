@@ -1,3 +1,6 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { SkillMatrixEntry } from "../lib/types";
 
 const STATUS_CONFIG: Record<SkillMatrixEntry["status"], { label: string; classes: string }> = {
@@ -10,35 +13,37 @@ export function SkillsMatrixTable({ entries }: { entries: SkillMatrixEntry[] }) 
   if (entries.length === 0) return null;
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-      <h3 className="mb-4 font-semibold text-gray-900">Skills Matrix</h3>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 text-gray-500">
-              <th className="py-2 pr-4 font-medium">Skill</th>
-              <th className="py-2 pr-4 font-medium">Status</th>
-              <th className="py-2 font-medium">Evidence</th>
-            </tr>
-          </thead>
-          <tbody>
+    <Card className="rounded-2xl shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-base">Skills Matrix</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Skill</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Evidence</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {entries.map((entry, i) => {
               const status = STATUS_CONFIG[entry.status];
               return (
-                <tr key={i} className="border-b border-gray-100 last:border-0">
-                  <td className="py-2 pr-4 font-medium text-gray-800">{entry.skill}</td>
-                  <td className="py-2 pr-4">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.classes}`}>
+                <TableRow key={i}>
+                  <TableCell className="font-medium text-gray-800">{entry.skill}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={`rounded-full border-transparent px-2 py-0.5 text-xs font-medium ${status.classes}`}>
                       {status.label}
-                    </span>
-                  </td>
-                  <td className="py-2 text-gray-600">{entry.evidence}</td>
-                </tr>
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="whitespace-normal text-gray-600">{entry.evidence}</TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
-      </div>
-    </div>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }

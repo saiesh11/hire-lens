@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { UploadForm } from "../components/UploadForm";
 import { AnalysisResultView } from "../components/AnalysisResultView";
 import { AnalyzingAnimation } from "../components/AnalyzingAnimation";
@@ -51,8 +52,10 @@ export function Home({ onAnalyzed }: HomeProps) {
         </p>
       </div>
 
-      <div className="relative rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-        <UploadForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
+      <Card className="relative rounded-2xl shadow-sm [--card-spacing:--spacing(6)] sm:[--card-spacing:--spacing(8)]">
+        <CardContent>
+          <UploadForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
+        </CardContent>
 
         {isSubmitting && (
           <div
@@ -62,7 +65,7 @@ export function Home({ onAnalyzed }: HomeProps) {
             <AnalyzingAnimation />
           </div>
         )}
-      </div>
+      </Card>
 
       {error && (
         <p

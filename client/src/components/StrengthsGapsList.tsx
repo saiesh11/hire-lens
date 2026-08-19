@@ -1,3 +1,4 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { EvidenceItem } from "../lib/types";
 
 interface StrengthsGapsListProps {
@@ -24,14 +25,22 @@ function EvidenceList({ items, emptyText }: { items: EvidenceItem[]; emptyText: 
 export function StrengthsGapsList({ strengths, gaps }: StrengthsGapsListProps) {
   return (
     <div className="grid gap-6 sm:grid-cols-2">
-      <div className="rounded-2xl border border-green-200 bg-green-50 p-5 text-green-900 shadow-sm">
-        <h3 className="mb-3 font-semibold text-green-800">Strengths</h3>
-        <EvidenceList items={strengths} emptyText="No specific strengths identified." />
-      </div>
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-900 shadow-sm">
-        <h3 className="mb-3 font-semibold text-amber-800">Gaps</h3>
-        <EvidenceList items={gaps} emptyText="No significant gaps identified." />
-      </div>
+      <Card className="rounded-2xl border-green-200 bg-green-50 text-green-900 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base text-green-800">Strengths</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <EvidenceList items={strengths} emptyText="No specific strengths identified." />
+        </CardContent>
+      </Card>
+      <Card className="rounded-2xl border-amber-200 bg-amber-50 text-amber-900 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base text-amber-800">Gaps</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <EvidenceList items={gaps} emptyText="No significant gaps identified." />
+        </CardContent>
+      </Card>
     </div>
   );
 }

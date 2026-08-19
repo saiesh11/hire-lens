@@ -1,3 +1,5 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import type { Criterion } from "../lib/types";
 
 function barColor(score: number): string {
@@ -10,23 +12,26 @@ export function CriteriaBreakdown({ criteria }: { criteria: Criterion[] }) {
   if (criteria.length === 0) return null;
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-      <h3 className="mb-4 font-semibold text-gray-900">Criteria Breakdown</h3>
-      <div className="flex flex-col gap-4">
+    <Card className="rounded-2xl shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-base">Criteria Breakdown</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
         {criteria.map((c, i) => (
           <div key={i}>
             <div className="mb-1 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="font-medium text-gray-800">{c.name}</span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                <Badge
+                  variant="outline"
+                  className={`rounded-full border-transparent px-2 py-0.5 text-xs font-medium ${
                     c.weight === "required"
                       ? "bg-indigo-100 text-indigo-700"
                       : "bg-gray-100 text-gray-600"
                   }`}
                 >
                   {c.weight}
-                </span>
+                </Badge>
               </div>
               <span className="text-sm font-semibold text-gray-700">{c.score}</span>
             </div>
@@ -39,7 +44,7 @@ export function CriteriaBreakdown({ criteria }: { criteria: Criterion[] }) {
             <p className="mt-1 text-sm text-gray-500">{c.notes}</p>
           </div>
         ))}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

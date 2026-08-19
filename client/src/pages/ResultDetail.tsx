@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { useApi, ApiError } from "../lib/api";
 import { AnalysisResultView } from "../components/AnalysisResultView";
 import type { AnalysisDetail } from "../lib/types";
@@ -39,12 +40,13 @@ export function ResultDetail({ id, onBack }: ResultDetailProps) {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">
-      <button
+      <Button
+        variant="link"
         onClick={onBack}
-        className="mb-6 flex items-center gap-1 text-sm font-medium text-indigo-600 transition hover:text-indigo-800"
+        className="mb-6 h-auto p-0 text-sm font-medium text-indigo-600 hover:text-indigo-800"
       >
         ← Back to History
-      </button>
+      </Button>
 
       {isLoading && <p className="text-sm text-gray-500">Loading...</p>}
 

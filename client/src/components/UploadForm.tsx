@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 interface UploadFormProps {
   onSubmit: (resume: File, jobDescription: string) => void;
@@ -102,14 +104,14 @@ export function UploadForm({ onSubmit, isSubmitting }: UploadFormProps) {
         <label htmlFor="jd" className="mb-1.5 block text-sm font-medium text-gray-700">
           Job Description
         </label>
-        <textarea
+        <Textarea
           id="jd"
           value={jobDescription}
           onChange={(e) => setJobDescription(e.target.value)}
           disabled={isSubmitting}
           rows={10}
           placeholder="Paste the job description here..."
-          className="block w-full rounded-xl border border-gray-300 bg-white p-3.5 text-sm shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          className="w-full resize-y rounded-xl p-3.5 text-sm shadow-sm"
         />
       </div>
 
@@ -119,13 +121,14 @@ export function UploadForm({ onSubmit, isSubmitting }: UploadFormProps) {
         </p>
       )}
 
-      <button
+      <Button
         type="submit"
         disabled={isSubmitting}
-        className="rounded-xl bg-indigo-600 px-4 py-3 font-medium text-white shadow-sm transition hover:bg-indigo-700 hover:shadow disabled:cursor-not-allowed disabled:bg-indigo-300 disabled:shadow-none"
+        size="lg"
+        className="h-auto w-full rounded-xl px-4 py-3 text-base font-medium shadow-sm hover:shadow"
       >
         {isSubmitting ? "Analyzing..." : "Analyze"}
-      </button>
+      </Button>
     </form>
   );
 }
