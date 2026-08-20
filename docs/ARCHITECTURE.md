@@ -94,6 +94,16 @@ Candidate scorecards are frozen at upload time — editing a job's JD never retr
 
 Resume uploads are stored at `${userId}/${randomUUID()}.pdf`, written alongside scoring as a third, equally non-fatal `Promise.all` branch in `POST /jobs/:jobId/candidates` (same precedent as the existing `extractResumeText` fallback) — a storage failure just leaves `resume_storage_path: null` on that candidate, degrading its re-analyze button to disabled-with-a-tooltip rather than failing candidate creation. The same applies to every candidate that predates this migration. Deleting a candidate or a job best-effort-cleans-up its storage file(s) (`resumeStorageService.deleteResumeFiles`, catches and logs, never throws) — for a job delete, `candidateService.listCandidateStoragePathsForJob` has to run *before* `deleteJob`, since `on delete cascade` removes the candidate rows inside Postgres before a post-delete query could ever see them.
 
+## Organizations + permissions (Phase 5)
+
+Jobs/candidates moved from `user_id`-scoped to `org_id`-scoped, so a team can share the same candidate pool instead of each person having an isolated private account. `user_id` is kept on both tables but its role changed: it's no longer used for query scoping, only written on insert for "who created this" attribution — every `.eq('user_id', userId)` in `jobService.ts`/`candidateService.ts` became `.eq('org_id', orgId)`.
+
+- **Membership is required, not optional** (Clerk Dashboard → Organizations → force every user into an org) — there's no personal/solo data model living alongside orgs, which keeps every route's scoping logic single-model.
+- **Role split**: everyone (admin or member) can view, create jobs, edit JDs, upload/re-analyze candidates. Only `org:admin` can delete a job or candidate (`routes/jobs.ts` / `routes/candidates.ts` check `getAuth(req).has({ role: "org:admin" })` before the delete service call runs) and only admins can invite/remove teammates (enforced by Clerk itself via `<OrganizationProfile />`, not app code). These are Clerk's built-in free-tier roles — no custom roles or paid add-on needed.
+- **Every route** now checks both `userId` (401 if missing — not signed in) and `orgId` (403 if missing — signed in but no active org) before doing anything else.
+- **Client**: org context rides the same session token `useApi()` already attaches via `getToken()` — no changes needed to `lib/api.ts`. `<OrganizationSwitcher />` sits in the nav bar; `App.tsx`'s `RequireOrganization` wrapper is a defensive fallback (renders Clerk's prebuilt `<OrganizationList />` to pick-or-create an org) for the case where a signed-in user has no active org, since "membership required" is a Dashboard-level setting, not something app code can fully guarantee on its own. Delete buttons are also gated client-side on `useAuth().has({ role: "org:admin" })` — a UX nicety so non-admins don't see a button that would 403; the actual enforcement is server-side.
+- **Migration**: `scripts/backfillOrganizations.ts` is a one-time, idempotent script (only touches rows where `org_id IS NULL`) that creates one Clerk organization per existing user (`clerkClient.organizations.createOrganization({ name, createdBy: userId })` — passing `createdBy` alone makes that user an `org:admin` member, no separate membership call needed) and backfills `org_id` on their existing jobs/candidates. `org_id` couldn't be `not null` at the same time the column was added, since populating it requires calling the Clerk API, not just SQL — `schema.sql`'s enforcement of `not null` is self-guarding (a no-op until every row has an `org_id`, then automatic on a later re-run), so the file stays safe to run in one shot at any time rather than requiring the user to sequence two manual SQL passes around the script.
+
 ## File map
 
 ```
@@ -105,6 +115,7 @@ server/src/
                  (original resume PDFs in the private `resumes` bucket)
   routes/       jobs.ts (Job CRUD + composed job-with-candidates GET), candidates.ts (create/get/delete/
                  reanalyze a candidate)
+  scripts/      backfillOrganizations.ts (one-time Phase 5 migration, run manually via tsx)
   schemas.ts    Zod schemas: analysisResultSchema (shared with the Claude structured-output call),
                  createJobSchema / updateJobSchema (request validation)
 

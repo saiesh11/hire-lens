@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase.js";
 export interface JobRow {
   id: string;
   user_id: string;
+  org_id: string;
   created_at: string;
   title: string;
   jd_text: string;
@@ -20,12 +21,13 @@ export class SupabaseServiceError extends Error {}
 
 export async function createJob(input: {
   userId: string;
+  orgId: string;
   title: string;
   jdText: string;
 }): Promise<JobRow> {
   const { data, error } = await supabase
     .from("jobs")
-    .insert({ user_id: input.userId, title: input.title, jd_text: input.jdText })
+    .insert({ user_id: input.userId, org_id: input.orgId, title: input.title, jd_text: input.jdText })
     .select()
     .single();
 
@@ -36,11 +38,11 @@ export async function createJob(input: {
   return data as JobRow;
 }
 
-export async function listJobs(userId: string): Promise<JobListItem[]> {
+export async function listJobs(orgId: string): Promise<JobListItem[]> {
   const { data, error } = await supabase
     .from("jobs")
     .select("id, created_at, title, candidates(count)")
-    .eq("user_id", userId)
+    .eq("org_id", orgId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -58,12 +60,12 @@ export async function listJobs(userId: string): Promise<JobListItem[]> {
   });
 }
 
-export async function getJobById(id: string, userId: string): Promise<JobRow | null> {
+export async function getJobById(id: string, orgId: string): Promise<JobRow | null> {
   const { data, error } = await supabase
     .from("jobs")
-    .select("id, user_id, created_at, title, jd_text, jd_updated_at")
+    .select("id, user_id, org_id, created_at, title, jd_text, jd_updated_at")
     .eq("id", id)
-    .eq("user_id", userId)
+    .eq("org_id", orgId)
     .maybeSingle();
 
   if (error) {
@@ -75,7 +77,7 @@ export async function getJobById(id: string, userId: string): Promise<JobRow | n
 
 export async function updateJob(
   id: string,
-  userId: string,
+  orgId: string,
   updates: { title?: string; jdText?: string },
 ): Promise<JobRow | null> {
   const patch: Record<string, string> = {};
@@ -89,7 +91,7 @@ export async function updateJob(
       .from("jobs")
       .select("jd_text")
       .eq("id", id)
-      .eq("user_id", userId)
+      .eq("org_id", orgId)
       .maybeSingle();
 
     if (fetchError) {
@@ -109,7 +111,7 @@ export async function updateJob(
     .from("jobs")
     .update(patch)
     .eq("id", id)
-    .eq("user_id", userId)
+    .eq("org_id", orgId)
     .select()
     .maybeSingle();
 
@@ -120,12 +122,12 @@ export async function updateJob(
   return data as JobRow | null;
 }
 
-export async function deleteJob(id: string, userId: string): Promise<boolean> {
+export async function deleteJob(id: string, orgId: string): Promise<boolean> {
   const { data, error } = await supabase
     .from("jobs")
     .delete()
     .eq("id", id)
-    .eq("user_id", userId)
+    .eq("org_id", orgId)
     .select("id");
 
   if (error) {

@@ -47,6 +47,22 @@ export function Settings({ onBack }: SettingsProps) {
 
         <Card className="rounded-2xl shadow-sm">
           <CardContent>
+            <h2 className="mb-1 text-base font-semibold text-foreground">Organization</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Invite teammates, manage roles, and update organization settings.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => clerk.openOrganizationProfile()}
+              className="h-auto rounded-lg px-4 py-2"
+            >
+              Manage Organization
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent>
             <h2 className="mb-1 text-base font-semibold text-foreground">Default Candidate Sort</h2>
             <p className="mb-4 text-sm text-muted-foreground">
               How a job's candidate list is sorted when you first open it.

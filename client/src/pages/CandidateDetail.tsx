@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/clerk-react";
 import { Button } from "@/components/ui/button";
 import { useApi, ApiError } from "../lib/api";
 import { AnalysisResultView } from "../components/AnalysisResultView";
@@ -13,6 +14,8 @@ interface CandidateDetailProps {
 
 export function CandidateDetail({ candidateId, onBack }: CandidateDetailProps) {
   const { getCandidate, deleteCandidate, reanalyzeCandidate } = useApi();
+  const { has } = useAuth();
+  const isAdmin = has?.({ role: "org:admin" }) ?? false;
   const [candidate, setCandidate] = useState<CandidateDetailType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -91,15 +94,17 @@ export function CandidateDetail({ candidateId, onBack }: CandidateDetailProps) {
             >
               {isReanalyzing ? "Re-analyzing..." : "Re-analyze"}
             </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleDelete}
-              disabled={isDeleting || isReanalyzing}
-              className="h-auto rounded-lg px-3 py-1.5"
-            >
-              {isDeleting ? "Removing..." : "Remove Candidate"}
-            </Button>
+            {isAdmin && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDelete}
+                disabled={isDeleting || isReanalyzing}
+                className="h-auto rounded-lg px-3 py-1.5"
+              >
+                {isDeleting ? "Removing..." : "Remove Candidate"}
+              </Button>
+            )}
           </div>
         )}
       </div>

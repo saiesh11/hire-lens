@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { SignedIn, SignedOut, SignIn, UserButton } from "@clerk/clerk-react";
+import { useEffect, useState } from "react";
+import { SignedIn, SignedOut, SignIn, UserButton, OrganizationSwitcher, OrganizationList, useAuth } from "@clerk/clerk-react";
 import { Sun, Moon, Settings as SettingsIcon } from "lucide-react";
 import { Jobs } from "./pages/Jobs";
 import { JobDetail } from "./pages/JobDetail";
@@ -58,7 +58,8 @@ function NavBar({
             <SettingsIcon className="h-4 w-4" />
           </button>
           <SignedIn>
-            <div className="ml-1">
+            <div className="ml-1 flex items-center gap-1">
+              <OrganizationSwitcher hidePersonal />
               <UserButton afterSignOutUrl="/" />
             </div>
           </SignedIn>
@@ -69,9 +70,21 @@ function NavBar({
 }
 
 function AppContent() {
+  const { orgId } = useAuth();
   const [view, setView] = useState<View>({ name: "jobs" });
   const [jobsRefreshKey, setJobsRefreshKey] = useState(0);
   const [theme, setTheme] = useState<Theme>(getPreferredTheme);
+
+  // Jobs/candidates are org-scoped, so switching the active org via
+  // <OrganizationSwitcher /> can leave the current view pointing at data
+  // that no longer belongs to it (or a stale, unrefreshed Jobs list — its
+  // own fetch effect only re-runs on jobsRefreshKey, not on org changes).
+  // Snap back to the Jobs list and force a fresh fetch scoped to whichever
+  // org is now active, rather than risk showing another org's data or a 404.
+  useEffect(() => {
+    setView({ name: "jobs" });
+    setJobsRefreshKey((k) => k + 1);
+  }, [orgId]);
 
   function toggleTheme() {
     const next: Theme = theme === "dark" ? "light" : "dark";
@@ -122,11 +135,34 @@ function AppContent() {
   );
 }
 
+function RequireOrganization() {
+  const { orgId } = useAuth();
+
+  // Membership is required org-wide (set in the Clerk Dashboard), so this is
+  // a defensive fallback rather than the primary gate — Clerk's own session
+  // flow should usually get a user to an active org before this renders, but
+  // don't assume that fully covers every case.
+  if (!orgId) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-background px-4">
+        <div className="flex items-center gap-2 text-xl font-semibold text-foreground">
+          <LensMark />
+          HireLens
+        </div>
+        <p className="text-sm text-muted-foreground">Create or join an organization to continue.</p>
+        <OrganizationList hidePersonal afterCreateOrganizationUrl="/" afterSelectOrganizationUrl="/" />
+      </div>
+    );
+  }
+
+  return <AppContent />;
+}
+
 function App() {
   return (
     <>
       <SignedIn>
-        <AppContent />
+        <RequireOrganization />
       </SignedIn>
       <SignedOut>
         <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-background px-4">

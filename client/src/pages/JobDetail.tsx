@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@clerk/clerk-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,6 +40,8 @@ function rankClasses(rank: number): string {
 
 export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: JobDetailProps) {
   const { getJob, updateJob, deleteJob, createCandidate } = useApi();
+  const { has } = useAuth();
+  const isAdmin = has?.({ role: "org:admin" }) ?? false;
   const [job, setJob] = useState<JobDetailType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -185,9 +188,11 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
                       <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="h-auto rounded-lg px-3 py-1.5">
                         Edit
                       </Button>
-                      <Button variant="destructive" size="sm" onClick={handleDeleteJob} className="h-auto rounded-lg px-3 py-1.5">
-                        Delete
-                      </Button>
+                      {isAdmin && (
+                        <Button variant="destructive" size="sm" onClick={handleDeleteJob} className="h-auto rounded-lg px-3 py-1.5">
+                          Delete
+                        </Button>
+                      )}
                     </div>
                   </div>
                   <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">{job.jd_text}</p>

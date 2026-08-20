@@ -25,9 +25,12 @@ const upload = multer({
 export const candidatesRouter = Router();
 
 candidatesRouter.post("/jobs/:jobId/candidates", upload.single("resume"), async (req, res) => {
-  const { userId } = getAuth(req);
+  const { userId, orgId } = getAuth(req);
   if (!userId) {
     return res.status(401).json({ error: "Sign in to add a candidate" });
+  }
+  if (!orgId) {
+    return res.status(403).json({ error: "Join or create an organization to continue" });
   }
 
   const file = req.file;
@@ -39,7 +42,7 @@ candidatesRouter.post("/jobs/:jobId/candidates", upload.single("resume"), async 
   }
 
   try {
-    const job = await getJobById(String(req.params.jobId), userId);
+    const job = await getJobById(String(req.params.jobId), orgId);
     if (!job) {
       return res.status(404).json({ error: "Job not found" });
     }
@@ -64,6 +67,7 @@ candidatesRouter.post("/jobs/:jobId/candidates", upload.single("resume"), async 
     const candidate = await createCandidate({
       jobId: job.id,
       userId,
+      orgId,
       resumeText: extractedText,
       resumeFilename: file.originalname,
       resumeStoragePath,
@@ -84,13 +88,16 @@ candidatesRouter.post("/jobs/:jobId/candidates", upload.single("resume"), async 
 });
 
 candidatesRouter.get("/candidates/:id", async (req, res) => {
-  const { userId } = getAuth(req);
+  const { userId, orgId } = getAuth(req);
   if (!userId) {
     return res.status(401).json({ error: "Sign in to view this candidate" });
   }
+  if (!orgId) {
+    return res.status(403).json({ error: "Join or create an organization to continue" });
+  }
 
   try {
-    const candidate = await getCandidateById(req.params.id, userId);
+    const candidate = await getCandidateById(req.params.id, orgId);
     if (!candidate) {
       return res.status(404).json({ error: "Candidate not found" });
     }
@@ -106,13 +113,20 @@ candidatesRouter.get("/candidates/:id", async (req, res) => {
 });
 
 candidatesRouter.delete("/candidates/:id", async (req, res) => {
-  const { userId } = getAuth(req);
+  const auth = getAuth(req);
+  const { userId, orgId } = auth;
   if (!userId) {
     return res.status(401).json({ error: "Sign in to delete this candidate" });
   }
+  if (!orgId) {
+    return res.status(403).json({ error: "Join or create an organization to continue" });
+  }
+  if (!auth.has({ role: "org:admin" })) {
+    return res.status(403).json({ error: "Only organization admins can delete this" });
+  }
 
   try {
-    const { deleted, resumeStoragePath } = await deleteCandidate(req.params.id, userId);
+    const { deleted, resumeStoragePath } = await deleteCandidate(req.params.id, orgId);
     if (!deleted) {
       return res.status(404).json({ error: "Candidate not found" });
     }
@@ -131,13 +145,16 @@ candidatesRouter.delete("/candidates/:id", async (req, res) => {
 });
 
 candidatesRouter.post("/candidates/:id/reanalyze", async (req, res) => {
-  const { userId } = getAuth(req);
+  const { userId, orgId } = getAuth(req);
   if (!userId) {
     return res.status(401).json({ error: "Sign in to re-analyze this candidate" });
   }
+  if (!orgId) {
+    return res.status(403).json({ error: "Join or create an organization to continue" });
+  }
 
   try {
-    const candidate = await getCandidateById(req.params.id, userId);
+    const candidate = await getCandidateById(req.params.id, orgId);
     if (!candidate) {
       return res.status(404).json({ error: "Candidate not found" });
     }
@@ -147,14 +164,14 @@ candidatesRouter.post("/candidates/:id/reanalyze", async (req, res) => {
       });
     }
 
-    const job = await getJobById(candidate.job_id, userId);
+    const job = await getJobById(candidate.job_id, orgId);
     if (!job) {
       return res.status(404).json({ error: "Job not found" });
     }
 
     const pdfBuffer = await downloadResumeFile(candidate.resume_storage_path);
     const result = await analyzeResumeAgainstJob(pdfBuffer, job.jd_text);
-    const updated = await updateCandidateScorecard(candidate.id, userId, result);
+    const updated = await updateCandidateScorecard(candidate.id, orgId, result);
     if (!updated) {
       return res.status(404).json({ error: "Candidate not found" });
     }

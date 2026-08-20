@@ -6,6 +6,7 @@ export interface CandidateRow {
   id: string;
   job_id: string;
   user_id: string;
+  org_id: string;
   created_at: string;
   scored_at: string;
   resume_text: string;
@@ -40,6 +41,7 @@ export { SupabaseServiceError };
 export async function createCandidate(input: {
   jobId: string;
   userId: string;
+  orgId: string;
   resumeText: string;
   resumeFilename: string;
   resumeStoragePath: string | null;
@@ -50,6 +52,7 @@ export async function createCandidate(input: {
     .insert({
       job_id: input.jobId,
       user_id: input.userId,
+      org_id: input.orgId,
       resume_text: input.resumeText,
       resume_filename: input.resumeFilename,
       resume_storage_path: input.resumeStoragePath,
@@ -74,7 +77,7 @@ export async function createCandidate(input: {
 
 export async function updateCandidateScorecard(
   id: string,
-  userId: string,
+  orgId: string,
   result: AnalysisResult,
 ): Promise<CandidateRow | null> {
   const { data, error } = await supabase
@@ -91,7 +94,7 @@ export async function updateCandidateScorecard(
       scored_at: new Date().toISOString(),
     })
     .eq("id", id)
-    .eq("user_id", userId)
+    .eq("org_id", orgId)
     .select()
     .maybeSingle();
 
@@ -104,13 +107,13 @@ export async function updateCandidateScorecard(
 
 export async function listCandidatesForJob(
   jobId: string,
-  userId: string,
+  orgId: string,
 ): Promise<CandidateListItem[]> {
   const { data, error } = await supabase
     .from("candidates")
     .select("id, created_at, scored_at, resume_filename, match_score, recommendation")
     .eq("job_id", jobId)
-    .eq("user_id", userId)
+    .eq("org_id", orgId)
     .order("match_score", { ascending: false });
 
   if (error) {
@@ -122,13 +125,13 @@ export async function listCandidatesForJob(
 
 export async function listCandidateStoragePathsForJob(
   jobId: string,
-  userId: string,
+  orgId: string,
 ): Promise<string[]> {
   const { data, error } = await supabase
     .from("candidates")
     .select("resume_storage_path")
     .eq("job_id", jobId)
-    .eq("user_id", userId);
+    .eq("org_id", orgId);
 
   if (error) {
     throw new SupabaseServiceError(error.message);
@@ -141,13 +144,13 @@ export async function listCandidateStoragePathsForJob(
 
 export async function getCandidateById(
   id: string,
-  userId: string,
+  orgId: string,
 ): Promise<CandidateWithJobRow | null> {
   const { data, error } = await supabase
     .from("candidates")
     .select("*, jobs(jd_updated_at)")
     .eq("id", id)
-    .eq("user_id", userId)
+    .eq("org_id", orgId)
     .maybeSingle();
 
   if (error) {
@@ -163,12 +166,12 @@ export async function getCandidateById(
   return { ...candidate, job_jd_updated_at: jobs?.jd_updated_at ?? candidate.created_at };
 }
 
-export async function deleteCandidate(id: string, userId: string): Promise<DeleteCandidateResult> {
+export async function deleteCandidate(id: string, orgId: string): Promise<DeleteCandidateResult> {
   const { data, error } = await supabase
     .from("candidates")
     .delete()
     .eq("id", id)
-    .eq("user_id", userId)
+    .eq("org_id", orgId)
     .select("id, resume_storage_path");
 
   if (error) {

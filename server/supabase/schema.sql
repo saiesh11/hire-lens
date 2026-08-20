@@ -93,3 +93,27 @@ alter table candidates add column if not exists resume_storage_path text;
 insert into storage.buckets (id, name, public)
 values ('resumes', 'resumes', false)
 on conflict (id) do nothing;
+
+-- Phase 5: organization settings + permissions. jobs/candidates move from
+-- user_id-scoped to org_id-scoped (user_id is kept, but its meaning shifts
+-- to "creator" for attribution only — no longer used for query scoping).
+-- org_id can't be not null immediately: existing rows have no org until
+-- scripts/backfillOrganizations.ts creates one per existing user and
+-- populates it, which requires calling the Clerk API, not just SQL. The
+-- not-null enforcement below is self-guarding so this file stays safe to
+-- run in one shot at any time — a no-op until every row has an org_id, then
+-- automatically enforced on a later re-run, with no manual step-ordering
+-- required.
+alter table jobs add column if not exists org_id text;
+alter table candidates add column if not exists org_id text;
+create index if not exists jobs_org_id_idx on jobs (org_id);
+create index if not exists candidates_org_id_idx on candidates (org_id);
+
+do $$
+begin
+  if not exists (select 1 from jobs where org_id is null)
+     and not exists (select 1 from candidates where org_id is null) then
+    alter table jobs alter column org_id set not null;
+    alter table candidates alter column org_id set not null;
+  end if;
+end $$;
