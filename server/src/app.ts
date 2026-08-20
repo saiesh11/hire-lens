@@ -1,3 +1,4 @@
+import "./lib/pdfPolyfills.js";
 import express from "express";
 import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
