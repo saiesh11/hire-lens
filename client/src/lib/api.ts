@@ -1,5 +1,5 @@
 import { useAuth } from "@clerk/clerk-react";
-import type { AnalysisDetail, AnalysisListItem } from "./types";
+import type { CandidateDetail, JobDetail, JobListItem } from "./types";
 
 export class ApiError extends Error {}
 
@@ -26,38 +26,89 @@ export function useApi() {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
-  async function analyzeResume(resumeFile: File, jobDescription: string): Promise<AnalysisDetail> {
+  async function jsonHeader(): Promise<HeadersInit> {
+    return { ...(await authHeader()), "Content-Type": "application/json" };
+  }
+
+  async function createJob(title: string, jdText: string): Promise<JobDetail> {
+    const res = await fetch("/api/jobs", {
+      method: "POST",
+      headers: await jsonHeader(),
+      body: JSON.stringify({ title, jdText }),
+    });
+    if (!res.ok) throw new ApiError(await parseErrorMessage(res));
+    const job = await res.json();
+    return { ...job, candidates: [] };
+  }
+
+  async function listJobs(): Promise<JobListItem[]> {
+    const res = await fetch("/api/jobs", { headers: await authHeader() });
+    if (!res.ok) throw new ApiError(await parseErrorMessage(res));
+    return res.json();
+  }
+
+  async function getJob(id: string): Promise<JobDetail> {
+    const res = await fetch(`/api/jobs/${id}`, { headers: await authHeader() });
+    if (!res.ok) throw new ApiError(await parseErrorMessage(res));
+    return res.json();
+  }
+
+  async function updateJob(
+    id: string,
+    updates: { title?: string; jdText?: string },
+  ): Promise<JobDetail> {
+    const res = await fetch(`/api/jobs/${id}`, {
+      method: "PATCH",
+      headers: await jsonHeader(),
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new ApiError(await parseErrorMessage(res));
+    return res.json();
+  }
+
+  async function deleteJob(id: string): Promise<void> {
+    const res = await fetch(`/api/jobs/${id}`, {
+      method: "DELETE",
+      headers: await authHeader(),
+    });
+    if (!res.ok) throw new ApiError(await parseErrorMessage(res));
+  }
+
+  async function createCandidate(jobId: string, resumeFile: File): Promise<CandidateDetail> {
     const formData = new FormData();
     formData.append("resume", resumeFile);
-    formData.append("jobDescription", jobDescription);
 
-    const res = await fetch("/api/analyze", {
+    const res = await fetch(`/api/jobs/${jobId}/candidates`, {
       method: "POST",
       headers: await authHeader(),
       body: formData,
     });
-
-    if (!res.ok) {
-      throw new ApiError(await parseErrorMessage(res));
-    }
+    if (!res.ok) throw new ApiError(await parseErrorMessage(res));
     return res.json();
   }
 
-  async function fetchAnalyses(): Promise<AnalysisListItem[]> {
-    const res = await fetch("/api/analyses", { headers: await authHeader() });
-    if (!res.ok) {
-      throw new ApiError(await parseErrorMessage(res));
-    }
+  async function getCandidate(id: string): Promise<CandidateDetail> {
+    const res = await fetch(`/api/candidates/${id}`, { headers: await authHeader() });
+    if (!res.ok) throw new ApiError(await parseErrorMessage(res));
     return res.json();
   }
 
-  async function fetchAnalysis(id: string): Promise<AnalysisDetail> {
-    const res = await fetch(`/api/analyses/${id}`, { headers: await authHeader() });
-    if (!res.ok) {
-      throw new ApiError(await parseErrorMessage(res));
-    }
-    return res.json();
+  async function deleteCandidate(id: string): Promise<void> {
+    const res = await fetch(`/api/candidates/${id}`, {
+      method: "DELETE",
+      headers: await authHeader(),
+    });
+    if (!res.ok) throw new ApiError(await parseErrorMessage(res));
   }
 
-  return { analyzeResume, fetchAnalyses, fetchAnalysis };
+  return {
+    createJob,
+    listJobs,
+    getJob,
+    updateJob,
+    deleteJob,
+    createCandidate,
+    getCandidate,
+    deleteCandidate,
+  };
 }

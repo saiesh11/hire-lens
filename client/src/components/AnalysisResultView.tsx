@@ -5,10 +5,10 @@ import { CriteriaBreakdown } from "./CriteriaBreakdown";
 import { SkillsMatrixTable } from "./SkillsMatrixTable";
 import { StrengthsGapsList } from "./StrengthsGapsList";
 import { InterviewQuestions } from "./InterviewQuestions";
-import type { AnalysisDetail } from "../lib/types";
+import type { CandidateDetail } from "../lib/types";
 
 type AnalysisResultViewProps = Pick<
-  AnalysisDetail,
+  CandidateDetail,
   | "match_score"
   | "recommendation"
   | "summary"

@@ -18,12 +18,12 @@ export interface EvidenceItem {
   evidence: string;
 }
 
-export interface AnalysisDetail {
+export interface CandidateDetail {
   id: string;
+  job_id: string;
   created_at: string;
   resume_text: string;
   resume_filename: string;
-  jd_text: string;
   match_score: number;
   recommendation: Recommendation;
   criteria: Criterion[];
@@ -34,7 +34,22 @@ export interface AnalysisDetail {
   summary: string;
 }
 
-export type AnalysisListItem = Pick<
-  AnalysisDetail,
+export type CandidateListItem = Pick<
+  CandidateDetail,
   "id" | "created_at" | "resume_filename" | "match_score" | "recommendation"
 >;
+
+export interface JobListItem {
+  id: string;
+  created_at: string;
+  title: string;
+  candidate_count: number;
+}
+
+export interface JobDetail {
+  id: string;
+  created_at: string;
+  title: string;
+  jd_text: string;
+  candidates: CandidateListItem[];
+}

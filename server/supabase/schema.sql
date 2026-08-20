@@ -1,14 +1,22 @@
--- Run this in the Supabase SQL editor (or via `supabase db push`) to create
--- the table this app reads and writes. Safe to re-run — every statement is
--- idempotent, so running it again against an already-migrated table is a
--- no-op for the new columns below.
+-- Run this in the Supabase SQL editor (or via `supabase db push`).
+-- Safe to re-run: table/column creation is idempotent, and the one-time
+-- migration below is self-disabling (see the `analyses` existence check).
 
-create table if not exists analyses (
+create table if not exists jobs (
   id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  created_at timestamptz not null default now(),
+  title text not null,
+  jd_text text not null
+);
+
+create table if not exists candidates (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid not null references jobs(id) on delete cascade,
+  user_id text not null,
   created_at timestamptz not null default now(),
   resume_text text not null,
   resume_filename text not null,
-  jd_text text not null,
   match_score int not null check (match_score >= 0 and match_score <= 100),
   recommendation text not null default 'possible_match',
   criteria jsonb not null default '[]'::jsonb,
@@ -16,30 +24,54 @@ create table if not exists analyses (
   strengths jsonb not null default '[]'::jsonb,
   gaps jsonb not null default '[]'::jsonb,
   interview_questions jsonb not null default '[]'::jsonb,
-  summary text not null,
-  user_id text
+  summary text not null
 );
 
--- v2: structured scorecard columns, for tables created before this migration.
-alter table analyses add column if not exists recommendation text not null default 'possible_match';
-alter table analyses add column if not exists criteria jsonb not null default '[]'::jsonb;
-alter table analyses add column if not exists skills_matrix jsonb not null default '[]'::jsonb;
-alter table analyses add column if not exists interview_questions jsonb not null default '[]'::jsonb;
--- strengths/gaps are still jsonb arrays, but each element is now
--- {point, evidence} instead of a plain string — no column change needed.
-
--- Phase 0 (auth): Clerk user IDs are strings like "user_2abc..." — not
--- Postgres uuid. Nullable, not backfilled: rows created before auth existed
--- have no real owner, and stay invisible once every read/write is scoped by
--- user_id in application code (see supabaseService.ts) rather than deleted.
-alter table analyses add column if not exists user_id text;
-create index if not exists analyses_user_id_idx on analyses (user_id);
-
-create index if not exists analyses_created_at_idx on analyses (created_at desc);
+create index if not exists jobs_user_id_idx on jobs (user_id);
+create index if not exists jobs_created_at_idx on jobs (created_at desc);
+create index if not exists candidates_job_id_idx on candidates (job_id);
+create index if not exists candidates_user_id_idx on candidates (user_id);
 
 -- New Supabase projects auto-enable RLS on new tables by default. This app
 -- has no client-side Supabase access — the anon key is used server-side only,
 -- and every query is explicitly scoped by user_id in application code
 -- (Clerk verifies identity in Express; see docs/ARCHITECTURE.md). RLS stays
 -- off because Express is the enforcement point, not because there's no auth.
-alter table analyses disable row level security;
+alter table jobs disable row level security;
+alter table candidates disable row level security;
+
+-- Phase 2 one-time migration: analyses -> jobs + candidates. Each analyses
+-- row (with a real user_id — pre-auth rows have none and are skipped, same
+-- as they already were) becomes its own one-off Job with one Candidate.
+-- Guarded by the `analyses` table's existence, so this is a no-op on every
+-- run after the first: once migrated, `analyses` is renamed to
+-- `analyses_legacy` below and this block is skipped from then on.
+do $$
+begin
+  if to_regclass('public.analyses') is not null then
+    with new_jobs as (
+      insert into jobs (user_id, title, jd_text, created_at)
+      select
+        user_id,
+        case when length(jd_text) > 60 then left(jd_text, 60) || '…' else jd_text end,
+        jd_text,
+        created_at
+      from analyses
+      where user_id is not null
+      returning id, user_id, jd_text, created_at
+    )
+    insert into candidates (
+      job_id, user_id, resume_text, resume_filename, match_score, recommendation,
+      criteria, skills_matrix, strengths, gaps, interview_questions, summary, created_at
+    )
+    select
+      nj.id, a.user_id, a.resume_text, a.resume_filename, a.match_score, a.recommendation,
+      a.criteria, a.skills_matrix, a.strengths, a.gaps, a.interview_questions, a.summary, a.created_at
+    from analyses a
+    join new_jobs nj
+      on nj.user_id = a.user_id and nj.jd_text = a.jd_text and nj.created_at = a.created_at
+    where a.user_id is not null;
+
+    alter table analyses rename to analyses_legacy;
+  end if;
+end $$;

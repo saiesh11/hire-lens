@@ -1,16 +1,15 @@
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 
 interface UploadFormProps {
-  onSubmit: (resume: File, jobDescription: string) => void;
+  onSubmit: (resume: File) => void;
   isSubmitting: boolean;
+  submitLabel?: string;
 }
 
-export function UploadForm({ onSubmit, isSubmitting }: UploadFormProps) {
+export function UploadForm({ onSubmit, isSubmitting, submitLabel = "Add Candidate" }: UploadFormProps) {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [jobDescription, setJobDescription] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -28,15 +27,11 @@ export function UploadForm({ onSubmit, isSubmitting }: UploadFormProps) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!resumeFile) {
-      setValidationError("Please upload your resume as a PDF");
-      return;
-    }
-    if (!jobDescription.trim()) {
-      setValidationError("Please paste the job description");
+      setValidationError("Please upload a resume as a PDF");
       return;
     }
     setValidationError(null);
-    onSubmit(resumeFile, jobDescription.trim());
+    onSubmit(resumeFile);
   }
 
   return (
@@ -100,21 +95,6 @@ export function UploadForm({ onSubmit, isSubmitting }: UploadFormProps) {
         </button>
       </div>
 
-      <div>
-        <label htmlFor="jd" className="mb-1.5 block text-sm font-medium text-gray-700">
-          Job Description
-        </label>
-        <Textarea
-          id="jd"
-          value={jobDescription}
-          onChange={(e) => setJobDescription(e.target.value)}
-          disabled={isSubmitting}
-          rows={10}
-          placeholder="Paste the job description here..."
-          className="w-full resize-y rounded-xl p-3.5 text-sm shadow-sm"
-        />
-      </div>
-
       {validationError && (
         <p className="text-sm text-red-600" role="alert">
           {validationError}
@@ -127,7 +107,7 @@ export function UploadForm({ onSubmit, isSubmitting }: UploadFormProps) {
         size="lg"
         className="h-auto w-full rounded-xl px-4 py-3 text-base font-medium shadow-sm hover:shadow"
       >
-        {isSubmitting ? "Analyzing..." : "Analyze"}
+        {isSubmitting ? "Analyzing..." : submitLabel}
       </Button>
     </form>
   );

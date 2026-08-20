@@ -21,10 +21,10 @@ Phases, in build order:
 
 | # | Phase | Status |
 |---|---|---|
-| **0** | **Auth + multi-tenant foundation (Clerk)** | **In progress** — backend (`clerkMiddleware`, `getAuth`, `user_id`-scoped queries) and frontend (`ClerkProvider`, sign-in gating, token-attached `useApi()` hook) are wired; not yet live-tested against real Clerk credentials |
-| 1 | shadcn/ui migration | Not started |
-| 2 | Core data model + CRUD (jobs, candidates) | Not started |
-| 3 | Bulk profile upload, candidate sorting, leaderboard | Not started |
+| 0 | Auth + multi-tenant foundation (Clerk) | ✅ Done, verified live |
+| 1 | shadcn/ui migration | ✅ Done, verified live |
+| 2 | Core data model + CRUD (jobs, candidates) | ✅ Done, verified live — see "Data model (Phase 2)" in `ARCHITECTURE.md` |
+| 3 | Bulk profile upload, candidate sorting, leaderboard | Not started — builds directly on Phase 2's Job → many Candidates shape |
 | 4 | Account preferences / settings | Not started |
 | 5 | Organization settings + permissions *(optional)* | Not started |
 | 6 | LinkedIn/profile scraping pipeline *(legal risk flagged — public pages only, no login-bypass or anti-detection tooling; user should get legal review before production)* | Not started |
@@ -38,4 +38,4 @@ Each phase gets its own detailed plan when we reach it — planning phases 1–9
 
 - `client/src/lib/types.ts` and the server's DB row shape are kept in sync by hand, not shared — a real monorepo type-sharing setup would remove that drift risk
 - Not deployed anywhere — see `DEPLOYMENT.md`
-- Pre-auth `analyses` rows have `user_id = null` and are now invisible to everyone (not deleted, just orphaned — see `ARCHITECTURE.md`)
+- Pre-auth rows (`user_id = null`) never made it into `jobs`/`candidates` — they're preserved untouched in `analyses_legacy`, which the app no longer reads (see "Data model (Phase 2)" in `ARCHITECTURE.md`)

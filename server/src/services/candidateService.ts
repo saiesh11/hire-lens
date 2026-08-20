@@ -1,12 +1,14 @@
 import { supabase } from "../lib/supabase.js";
+import { SupabaseServiceError } from "./jobService.js";
 import type { AnalysisResult, Recommendation } from "../schemas.js";
 
-export interface AnalysisRow {
+export interface CandidateRow {
   id: string;
+  job_id: string;
+  user_id: string;
   created_at: string;
   resume_text: string;
   resume_filename: string;
-  jd_text: string;
   match_score: number;
   recommendation: Recommendation;
   criteria: AnalysisResult["criteria"];
@@ -15,30 +17,29 @@ export interface AnalysisRow {
   gaps: AnalysisResult["gaps"];
   interview_questions: string[];
   summary: string;
-  user_id: string;
 }
 
-export type AnalysisListItem = Pick<
-  AnalysisRow,
+export type CandidateListItem = Pick<
+  CandidateRow,
   "id" | "created_at" | "resume_filename" | "match_score" | "recommendation"
 >;
 
-export class SupabaseServiceError extends Error {}
+export { SupabaseServiceError };
 
-export async function saveAnalysis(input: {
+export async function createCandidate(input: {
+  jobId: string;
   userId: string;
   resumeText: string;
   resumeFilename: string;
-  jdText: string;
   result: AnalysisResult;
-}): Promise<AnalysisRow> {
+}): Promise<CandidateRow> {
   const { data, error } = await supabase
-    .from("analyses")
+    .from("candidates")
     .insert({
+      job_id: input.jobId,
       user_id: input.userId,
       resume_text: input.resumeText,
       resume_filename: input.resumeFilename,
-      jd_text: input.jdText,
       match_score: input.result.matchScore,
       recommendation: input.result.recommendation,
       criteria: input.result.criteria,
@@ -52,18 +53,22 @@ export async function saveAnalysis(input: {
     .single();
 
   if (error || !data) {
-    throw new SupabaseServiceError(error?.message ?? "Failed to save analysis");
+    throw new SupabaseServiceError(error?.message ?? "Failed to save candidate");
   }
 
-  return data as AnalysisRow;
+  return data as CandidateRow;
 }
 
-export async function listAnalyses(userId: string): Promise<AnalysisListItem[]> {
+export async function listCandidatesForJob(
+  jobId: string,
+  userId: string,
+): Promise<CandidateListItem[]> {
   const { data, error } = await supabase
-    .from("analyses")
+    .from("candidates")
     .select("id, created_at, resume_filename, match_score, recommendation")
+    .eq("job_id", jobId)
     .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+    .order("match_score", { ascending: false });
 
   if (error) {
     throw new SupabaseServiceError(error.message);
@@ -72,9 +77,9 @@ export async function listAnalyses(userId: string): Promise<AnalysisListItem[]> 
   return data ?? [];
 }
 
-export async function getAnalysisById(id: string, userId: string): Promise<AnalysisRow | null> {
+export async function getCandidateById(id: string, userId: string): Promise<CandidateRow | null> {
   const { data, error } = await supabase
-    .from("analyses")
+    .from("candidates")
     .select("*")
     .eq("id", id)
     .eq("user_id", userId)
@@ -84,5 +89,20 @@ export async function getAnalysisById(id: string, userId: string): Promise<Analy
     throw new SupabaseServiceError(error.message);
   }
 
-  return data as AnalysisRow | null;
+  return data as CandidateRow | null;
+}
+
+export async function deleteCandidate(id: string, userId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("candidates")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select("id");
+
+  if (error) {
+    throw new SupabaseServiceError(error.message);
+  }
+
+  return (data?.length ?? 0) > 0;
 }

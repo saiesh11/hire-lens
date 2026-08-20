@@ -34,6 +34,16 @@ export const analysisResultSchema = z.object({
 export type AnalysisResult = z.infer<typeof analysisResultSchema>;
 export type Recommendation = z.infer<typeof recommendationSchema>;
 
-export const analyzeRequestSchema = z.object({
-  jobDescription: z.string().trim().min(1, "Job description is required"),
+export const createJobSchema = z.object({
+  title: z.string().trim().min(1, "Job title is required").max(200),
+  jdText: z.string().trim().min(1, "Job description is required"),
 });
+
+export const updateJobSchema = z
+  .object({
+    title: z.string().trim().min(1, "Job title is required").max(200).optional(),
+    jdText: z.string().trim().min(1, "Job description is required").optional(),
+  })
+  .refine((data) => data.title !== undefined || data.jdText !== undefined, {
+    message: "At least one field (title or jdText) must be provided",
+  });

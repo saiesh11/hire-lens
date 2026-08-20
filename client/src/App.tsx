@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { SignedIn, SignedOut, SignIn, UserButton } from "@clerk/clerk-react";
-import { Button } from "@/components/ui/button";
-import { Home } from "./pages/Home";
-import { History } from "./pages/History";
-import { ResultDetail } from "./pages/ResultDetail";
-import type { AnalysisDetail } from "./lib/types";
+import { Jobs } from "./pages/Jobs";
+import { JobDetail } from "./pages/JobDetail";
+import { CandidateDetail } from "./pages/CandidateDetail";
 
-type View = { name: "home" } | { name: "history" } | { name: "detail"; id: string };
+type View =
+  | { name: "jobs" }
+  | { name: "job-detail"; jobId: string }
+  | { name: "candidate-detail"; candidateId: string; jobId: string };
 
 function LensMark() {
   return (
@@ -18,76 +19,57 @@ function LensMark() {
   );
 }
 
-function NavBar({
-  active,
-  onNavigate,
-}: {
-  active: View["name"];
-  onNavigate: (name: "home" | "history") => void;
-}) {
-  const linkClasses = (name: "home" | "history") =>
-    `h-auto rounded-md px-3 py-1.5 text-sm font-medium ${
-      active === name
-        ? "bg-indigo-100 text-indigo-700 hover:bg-indigo-100"
-        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-    }`;
-
+function NavBar({ onHome }: { onHome: () => void }) {
   return (
     <nav className="sticky top-0 z-10 border-b border-gray-200 bg-white/80 backdrop-blur">
       <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
-        <button
-          onClick={() => onNavigate("home")}
-          className="flex items-center gap-2 text-base font-semibold text-gray-900"
-        >
+        <button onClick={onHome} className="flex items-center gap-2 text-base font-semibold text-gray-900">
           <LensMark />
           HireLens
         </button>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" onClick={() => onNavigate("home")} className={linkClasses("home")}>
-              Home
-            </Button>
-            <Button variant="ghost" onClick={() => onNavigate("history")} className={linkClasses("history")}>
-              History
-            </Button>
-          </div>
-          <SignedIn>
-            <UserButton afterSignOutUrl="/" />
-          </SignedIn>
-        </div>
+        <SignedIn>
+          <UserButton afterSignOutUrl="/" />
+        </SignedIn>
       </div>
     </nav>
   );
 }
 
 function AppContent() {
-  const [view, setView] = useState<View>({ name: "home" });
-  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
-
-  function handleAnalyzed(_analysis: AnalysisDetail) {
-    setHistoryRefreshKey((k) => k + 1);
-  }
+  const [view, setView] = useState<View>({ name: "jobs" });
+  const [jobsRefreshKey, setJobsRefreshKey] = useState(0);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <NavBar
-        active={view.name}
-        onNavigate={(name) =>
-          setView(name === "home" ? { name: "home" } : { name: "history" })
-        }
-      />
+      <NavBar onHome={() => setView({ name: "jobs" })} />
 
-      {view.name === "home" && <Home onAnalyzed={handleAnalyzed} />}
-
-      {view.name === "history" && (
-        <History
-          refreshKey={historyRefreshKey}
-          onSelect={(id) => setView({ name: "detail", id })}
+      {view.name === "jobs" && (
+        <Jobs
+          refreshKey={jobsRefreshKey}
+          onSelect={(jobId) => setView({ name: "job-detail", jobId })}
+          onCreated={() => setJobsRefreshKey((k) => k + 1)}
         />
       )}
 
-      {view.name === "detail" && (
-        <ResultDetail id={view.id} onBack={() => setView({ name: "history" })} />
+      {view.name === "job-detail" && (
+        <JobDetail
+          jobId={view.jobId}
+          onBack={() => setView({ name: "jobs" })}
+          onSelectCandidate={(candidateId) =>
+            setView({ name: "candidate-detail", candidateId, jobId: view.jobId })
+          }
+          onJobDeleted={() => {
+            setJobsRefreshKey((k) => k + 1);
+            setView({ name: "jobs" });
+          }}
+        />
+      )}
+
+      {view.name === "candidate-detail" && (
+        <CandidateDetail
+          candidateId={view.candidateId}
+          onBack={() => setView({ name: "job-detail", jobId: view.jobId })}
+        />
       )}
     </div>
   );
