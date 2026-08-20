@@ -24,7 +24,7 @@ Phases, in build order:
 | 0 | Auth + multi-tenant foundation (Clerk) | ✅ Done, verified live |
 | 1 | shadcn/ui migration | ✅ Done, verified live |
 | 2 | Core data model + CRUD (jobs, candidates) | ✅ Done, verified live — see "Data model (Phase 2)" in `ARCHITECTURE.md` |
-| 3 | Bulk profile upload, candidate sorting, leaderboard | Not started — builds directly on Phase 2's Job → many Candidates shape |
+| 3 | Bulk profile upload, candidate sorting, leaderboard | ✅ Done, verified live — entirely client-side, see `ARCHITECTURE.md` |
 | 4 | Account preferences / settings | Not started |
 | 5 | Organization settings + permissions *(optional)* | Not started |
 | 6 | LinkedIn/profile scraping pipeline *(legal risk flagged — public pages only, no login-bypass or anti-detection tooling; user should get legal review before production)* | Not started |

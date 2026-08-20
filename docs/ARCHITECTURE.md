@@ -73,6 +73,16 @@ Deliberately **two tables, not three.** An earlier sketch assumed a candidate mi
 
 This superseded the flat `analyses` table from v1/v2 (one row per resume+JD pair, JD text duplicated on every row). A one-time migration (in `schema.sql`, guarded so it only runs once) turned every existing `analyses` row into its own one-off Job with one Candidate, then renamed `analyses` to `analyses_legacy` as an unused backup — the app never reads it. `criteria`, `skills_matrix`, `interview_questions` are jsonb arrays matching the Claude structured-output shape 1:1 on `candidates`; `strengths`/`gaps` are jsonb arrays of `{point, evidence}` objects, not plain strings.
 
+## Phase 3: bulk upload, sorting, leaderboard — entirely client-side
+
+No backend changes were needed for this phase — `POST /api/jobs/:id/candidates` already scores one resume at a time, and `GET /api/jobs/:id` already returns the full candidate list.
+
+- **Bulk upload** (`components/BulkUploadForm.tsx`) is a queue of independent single-candidate uploads processed **sequentially** (each is a real Claude API call — sequential keeps load predictable and makes per-file progress easy to show), not a new batch endpoint. Each file tracks its own status (queued → scoring → done/failed) and a failed file gets a **Retry** button that just re-calls the same upload function for that one file — the others in the batch are unaffected.
+- **Sorting** is a plain client-side `.sort()` over `job.candidates` (small per job — tens of rows, not thousands), not a `?sort=` query param. No extra round-trip.
+- **Leaderboard** is presentational only: rank numbers computed from whatever sort is currently active.
+
+**A real bug found via live testing, not just a design nicety:** `JobDetail`'s candidate-list refresh (after each candidate upload) was originally implemented by bumping a `refreshKey` that the data-loading `useEffect` depended on — and that effect sets `isLoading = true` at its start. Since the whole page (including the actively-uploading `BulkUploadForm`) was only rendered when `!isLoading`, every single completed upload in a batch briefly unmounted the entire page, destroying `BulkUploadForm`'s local queue state, then remounted a *fresh, empty* form once the refetch finished — so uploading 5 resumes lost files 2–5 from view after the first one completed. Fixed by splitting the initial (blocking) load from a `refreshJob()` background refresh that only updates `job` state and never touches `isLoading`, so the page — and any component with in-progress local state — never unmounts on a background refresh. General lesson for this codebase: a "loading" flag that hides an entire subtree is only safe for the *initial* load, not for refreshing already-displayed data that some child component might be actively tracking state against.
+
 ## File map
 
 ```
@@ -86,10 +96,11 @@ server/src/
 
 client/src/
   lib/          api.ts (useApi() hook — token-attached fetch wrappers), types.ts (shared with server's DB row shape, kept in sync by hand)
-  components/   UploadForm (resume-only — the JD field moved to the Job create form), ScoreGauge (SVG ring),
-                 RecommendationBadge, CriteriaBreakdown, SkillsMatrixTable, StrengthsGapsList, InterviewQuestions,
+  components/   UploadForm (single-file, unused since Phase 3 but kept — still works), BulkUploadForm (multi-file
+                 queue with per-file retry, used by JobDetail), ScoreGauge (SVG ring), RecommendationBadge,
+                 CriteriaBreakdown, SkillsMatrixTable, StrengthsGapsList, InterviewQuestions,
                  AnalysisResultView (composes the scorecard components — unchanged since v2, just fed from a Candidate now)
-  pages/        Jobs (landing page — create + list), JobDetail (JD, add-candidate form, candidate list),
+  pages/        Jobs (landing page — create + list), JobDetail (JD, bulk-upload form, sortable ranked candidate list),
                  CandidateDetail (the scorecard, via AnalysisResultView)
   App.tsx       SignedIn/SignedOut gating (Clerk), view-state navigation + nav bar
   main.tsx      wraps the app in <ClerkProvider>

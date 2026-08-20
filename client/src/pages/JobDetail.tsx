@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RecommendationBadge } from "../components/RecommendationBadge";
-import { UploadForm } from "../components/UploadForm";
-import { AnalyzingAnimation } from "../components/AnalyzingAnimation";
+import { BulkUploadForm } from "../components/BulkUploadForm";
 import { useApi, ApiError } from "../lib/api";
-import type { JobDetail as JobDetailType } from "../lib/types";
+import type { JobDetail as JobDetailType, Recommendation } from "../lib/types";
 
 interface JobDetailProps {
   jobId: string;
@@ -15,10 +15,32 @@ interface JobDetailProps {
   onJobDeleted: () => void;
 }
 
+type SortOption = "score-desc" | "score-asc" | "newest" | "recommendation";
+
+const SORT_LABELS: Record<SortOption, string> = {
+  "score-desc": "Score (High to Low)",
+  "score-asc": "Score (Low to High)",
+  newest: "Newest First",
+  recommendation: "Recommendation",
+};
+
+const RECOMMENDATION_RANK: Record<Recommendation, number> = {
+  strong_match: 0,
+  possible_match: 1,
+  not_a_match: 2,
+};
+
 function scoreClasses(score: number): string {
   if (score >= 75) return "bg-green-100 text-green-800";
   if (score >= 50) return "bg-amber-100 text-amber-800";
   return "bg-red-100 text-red-800";
+}
+
+function rankClasses(rank: number): string {
+  if (rank === 1) return "bg-amber-100 text-amber-800";
+  if (rank === 2) return "bg-gray-200 text-gray-700";
+  if (rank === 3) return "bg-orange-100 text-orange-800";
+  return "bg-gray-100 text-gray-500";
 }
 
 export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: JobDetailProps) {
@@ -32,10 +54,21 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
   const [editJdText, setEditJdText] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [sortOption, setSortOption] = useState<SortOption>("score-desc");
   const candidatesRef = useRef<HTMLDivElement>(null);
+
+  // Silent background refresh — re-fetches the job without touching isLoading,
+  // so the page (and the in-progress BulkUploadForm's queue) never unmounts.
+  // Bumping a refreshKey through the loading effect below would hide the whole
+  // page between every candidate upload, wiping BulkUploadForm's local state.
+  async function refreshJob() {
+    try {
+      const data = await getJob(jobId);
+      setJob(data);
+    } catch (err) {
+      setLoadError(err instanceof ApiError ? err.message : "Failed to refresh this job");
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -60,20 +93,23 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
     return () => {
       cancelled = true;
     };
-  }, [jobId, refreshKey]);
+  }, [jobId]);
 
-  async function handleUpload(resume: File) {
-    setIsSubmitting(true);
-    setUploadError(null);
-    try {
-      await createCandidate(jobId, resume);
-      setRefreshKey((k) => k + 1);
-    } catch (err) {
-      setUploadError(err instanceof ApiError ? err.message : "Something went wrong scoring this resume.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+  const sortedCandidates = useMemo(() => {
+    if (!job) return [];
+    return [...job.candidates].sort((a, b) => {
+      switch (sortOption) {
+        case "score-desc":
+          return b.match_score - a.match_score;
+        case "score-asc":
+          return a.match_score - b.match_score;
+        case "newest":
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case "recommendation":
+          return RECOMMENDATION_RANK[a.recommendation] - RECOMMENDATION_RANK[b.recommendation];
+      }
+    });
+  }, [job, sortOption]);
 
   async function handleSaveEdit() {
     if (!editTitle.trim() || !editJdText.trim()) return;
@@ -81,7 +117,7 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
     try {
       await updateJob(jobId, { title: editTitle.trim(), jdText: editJdText.trim() });
       setIsEditing(false);
-      setRefreshKey((k) => k + 1);
+      await refreshJob();
     } catch (err) {
       setLoadError(err instanceof ApiError ? err.message : "Failed to save changes");
     } finally {
@@ -166,43 +202,57 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
             </CardContent>
           </Card>
 
-          <Card className="relative rounded-2xl shadow-sm">
+          <Card className="rounded-2xl shadow-sm">
             <CardContent>
-              <h2 className="mb-4 text-base font-semibold text-gray-900">Add a Candidate</h2>
-              <UploadForm onSubmit={handleUpload} isSubmitting={isSubmitting} submitLabel="Add Candidate" />
-              {uploadError && (
-                <p className="mt-3 text-sm text-red-600" role="alert">
-                  {uploadError}
-                </p>
-              )}
+              <h2 className="mb-4 text-base font-semibold text-gray-900">Add Candidates</h2>
+              <BulkUploadForm
+                onUploadFile={(file) => createCandidate(jobId, file)}
+                onCandidateAdded={refreshJob}
+              />
             </CardContent>
-            {isSubmitting && (
-              <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-white/90 backdrop-blur-sm">
-                <AnalyzingAnimation />
-              </div>
-            )}
           </Card>
 
           <div ref={candidatesRef}>
-            <h2 className="mb-4 text-xl font-bold tracking-tight text-gray-900">
-              Candidates ({job.candidates.length})
-            </h2>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h2 className="text-xl font-bold tracking-tight text-gray-900">
+                Candidates ({job.candidates.length})
+              </h2>
+              {job.candidates.length > 1 && (
+                <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
+                  <SelectTrigger className="w-[190px] rounded-lg" size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(SORT_LABELS) as SortOption[]).map((opt) => (
+                      <SelectItem key={opt} value={opt}>
+                        {SORT_LABELS[opt]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
 
-            {job.candidates.length === 0 ? (
+            {sortedCandidates.length === 0 ? (
               <Card className="rounded-2xl border-dashed">
                 <CardContent className="text-center">
-                  <p className="text-sm text-gray-500">No candidates yet. Add a resume above.</p>
+                  <p className="text-sm text-gray-500">No candidates yet. Add resumes above.</p>
                 </CardContent>
               </Card>
             ) : (
               <ul className="flex flex-col gap-3">
-                {job.candidates.map((c) => (
+                {sortedCandidates.map((c, i) => (
                   <li key={c.id}>
                     <button
                       onClick={() => onSelectCandidate(c.id)}
-                      className="flex w-full items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md sm:p-5"
+                      className="flex w-full items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md sm:p-5"
                     >
-                      <div className="min-w-0">
+                      <span
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${rankClasses(i + 1)}`}
+                      >
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
                         <p className="truncate font-medium text-gray-900">{c.resume_filename}</p>
                         <p className="text-sm text-gray-500">{new Date(c.created_at).toLocaleString()}</p>
                       </div>
