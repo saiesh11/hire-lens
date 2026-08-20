@@ -1,0 +1,9 @@
+{
+  "name": "hire-lens",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "client",
+    "server"
+  ]
+}

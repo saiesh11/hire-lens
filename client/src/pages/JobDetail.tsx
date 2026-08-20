@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RecommendationBadge } from "../components/RecommendationBadge";
 import { StaleBadge } from "../components/StaleBadge";
 import { GithubSummaryBadge } from "../components/GithubSummaryBadge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BulkUploadForm } from "../components/BulkUploadForm";
 import { useApi, ApiError } from "../lib/api";
 import { getDefaultSort } from "../lib/preferences";
@@ -139,7 +140,13 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
         ← Back to Jobs
       </Button>
 
-      {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
+      {isLoading && (
+        <div className="flex flex-col gap-6">
+          <Skeleton className="h-32 rounded-2xl" />
+          <Skeleton className="h-24 rounded-2xl" />
+          <Skeleton className="h-20 rounded-2xl" />
+        </div>
+      )}
 
       {loadError && (
         <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400" role="alert">

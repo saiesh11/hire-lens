@@ -1,5 +1,5 @@
 import { useAuth } from "@clerk/clerk-react";
-import type { CandidateDetail, GithubSearchResult, JobDetail, JobListItem } from "./types";
+import type { CandidateDetail, DashboardSummary, GithubSearchResult, JobDetail, JobListItem } from "./types";
 
 export class ApiError extends Error {}
 
@@ -126,6 +126,12 @@ export function useApi() {
     return res.json();
   }
 
+  async function getDashboardSummary(): Promise<DashboardSummary> {
+    const res = await fetch("/api/dashboard", { headers: await authHeader() });
+    if (!res.ok) throw new ApiError(await parseErrorMessage(res));
+    return res.json();
+  }
+
   return {
     createJob,
     listJobs,
@@ -138,5 +144,6 @@ export function useApi() {
     reanalyzeCandidate,
     fetchCandidateGithub,
     searchCandidateGithub,
+    getDashboardSummary,
   };
 }

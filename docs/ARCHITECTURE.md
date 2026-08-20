@@ -121,6 +121,16 @@ Phase 6 was originally scoped as LinkedIn/profile scraping. That carried real, u
 - **Search-and-confirm, deliberately not auto-select.** `githubService.searchGithubUsers()` calls GitHub's `/search/users` (the `in:name` qualifier, confirmed against GitHub's search-syntax docs to match real names, not just usernames) and returns up to 5 candidates. **The app never silently picks the "best" match** — GitHub names aren't unique, so a wrong auto-pick would attribute a stranger's repos/activity to the wrong person, which is worse than showing nothing in a hiring context. Instead `GET /candidates/:id/github/search` returns the short list, and `GithubProfileCard.tsx` renders it as clickable rows (avatar/bio/location) — picking one calls the *same* `POST /candidates/:id/github` save path the manual-entry field already uses, so search is just a faster way to fill in a username, not a second code path.
 - **The Search API has its own, much stricter rate limit** than the general REST endpoints used elsewhere in this feature — 10 requests/minute unauthenticated, 30/minute authenticated (vs. 60/hour and 5,000/hour respectively for `/users` and `/users/{username}/repos`). Fine for a one-click-per-candidate, human-triggered search; would not be fine to call automatically or in bulk, which is part of why this stayed a manual action rather than running at upload time alongside the URL-based auto-detection.
 
+## Dashboard (Phase 7)
+
+The Jobs page used to be the landing view — just a bare list with no aggregate sense of "how's hiring going." `Dashboard.tsx` is now the default view, giving an org-wide overview: total jobs/candidates, average score, a recommendation-split pie chart, a score-distribution bar chart, a cross-job Top Candidates leaderboard, and Recent Activity.
+
+- **Aggregation happens in application code, not a SQL view or RPC.** `dashboardService.getDashboardSummary(orgId)` fetches a `count`-only jobs query plus every org-scoped candidate row (with its parent job's title embedded via the same Postgrest FK-embed pattern already used in `jobService.listJobs`'s `candidates(count)` and `candidateService.getCandidateById`'s `jobs(jd_updated_at)`), then computes averages/counts/buckets in JS. Matches this app's actual scale (tens of candidates per org) and its existing pattern — `listJobs`'s candidate count is the only other place doing any DB-side aggregation; everything else is app-code, same here.
+- **Score-distribution buckets (`0-49` / `50-74` / `75-100`) reuse the exact thresholds already used everywhere else** — `ScoreGauge.tsx`'s `scoreColor()` and `JobDetail.tsx`'s `scoreClasses()` — so the chart's red/amber/green meaning matches the rest of the app instead of introducing an unrelated new scheme.
+- **Recharts is a new dependency** — the first added to the client since Phase 1 (every feature since deliberately avoided new deps, e.g. no router). Confirmed with the user directly rather than added silently, given hand-rolling a histogram/pie chart well (tooltips, legends, responsive sizing) is meaningfully more code than the one existing hand-built visual (`ScoreGauge`'s single animated ring).
+- **Chart theming**: Recharts renders literal SVG with JS-supplied color props — it has no idea about Tailwind's `dark:` classes. Structural chart elements (axis text, grid lines, tooltip background) are passed CSS variable references (`var(--muted-foreground)`, `var(--border)`, `var(--card)`) as literal strings, which still resolve correctly through the cascade and flip with the `.dark` class exactly like the rest of the theme (Phase 4). The score/recommendation colors themselves are the same literal hex already used by `ScoreGauge` (`#16a34a`/`#d97706`/`#dc2626`) — those don't need a dark variant, same as today.
+- **Polish pass, scoped concretely**: a new shadcn `Skeleton` primitive (`npx shadcn add skeleton`) replaced the plain "Loading..." text on `Jobs`, `JobDetail`, `CandidateDetail`, and `Dashboard` — kept to this one consistent improvement rather than an open-ended redesign.
+
 ## File map
 
 ```
@@ -130,9 +140,10 @@ server/src/
   services/     pdfService (pdf-parse, storage-only text extraction), claudeService (native-PDF scoring,
                  also captures candidateName), jobService (Job CRUD), candidateService (Candidate CRUD),
                  resumeStorageService (original resume PDFs in the private `resumes` bucket),
-                 githubService (GitHub API profile enrichment + name-based search)
+                 githubService (GitHub API profile enrichment + name-based search), dashboardService
+                 (org-wide stats/leaderboard, aggregated in application code)
   routes/       jobs.ts (Job CRUD + composed job-with-candidates GET), candidates.ts (create/get/delete/
-                 reanalyze/github-enrich/github-search a candidate)
+                 reanalyze/github-enrich/github-search a candidate), dashboard.ts (org summary)
   scripts/      backfillOrganizations.ts (one-time Phase 5 migration, run manually via tsx)
   schemas.ts    Zod schemas: analysisResultSchema (shared with the Claude structured-output call,
                  includes candidateName), createJobSchema / updateJobSchema / setCandidateGithubSchema
@@ -146,8 +157,9 @@ client/src/
                  GithubSummaryBadge (compact list-row preview of already-fetched enrichment),
                  CriteriaBreakdown, SkillsMatrixTable, StrengthsGapsList, InterviewQuestions,
                  AnalysisResultView (composes the scorecard components — unchanged since v2, just fed from a Candidate now)
-  pages/        Jobs (landing page — create + list), JobDetail (JD, bulk-upload form, sortable ranked candidate list),
+  pages/        Dashboard (landing page — org-wide stats, charts, cross-job leaderboard), Jobs (create + list),
+                 JobDetail (JD, bulk-upload form, sortable ranked candidate list),
                  CandidateDetail (the scorecard, via AnalysisResultView)
-  App.tsx       SignedIn/SignedOut gating (Clerk), view-state navigation + nav bar
+  App.tsx       SignedIn/SignedOut gating (Clerk), view-state navigation + nav bar (Dashboard/Jobs links)
   main.tsx      wraps the app in <ClerkProvider>
 ```

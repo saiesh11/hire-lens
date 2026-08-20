@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useApi, ApiError } from "../lib/api";
 import type { JobListItem } from "../lib/types";
 
@@ -126,7 +127,13 @@ export function Jobs({ refreshKey, onSelect, onCreated }: JobsProps) {
       <div>
         <h2 className="mb-4 text-xl font-bold tracking-tight text-foreground">Your Jobs</h2>
 
-        {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
+        {isLoading && (
+          <div className="flex flex-col gap-3">
+            <Skeleton className="h-20 rounded-2xl" />
+            <Skeleton className="h-20 rounded-2xl" />
+            <Skeleton className="h-20 rounded-2xl" />
+          </div>
+        )}
 
         {loadError && (
           <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400" role="alert">

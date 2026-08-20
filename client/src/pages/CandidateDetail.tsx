@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useApi, ApiError } from "../lib/api";
 import { AnalysisResultView } from "../components/AnalysisResultView";
 import { StaleBadge } from "../components/StaleBadge";
@@ -110,7 +111,13 @@ export function CandidateDetail({ candidateId, onBack }: CandidateDetailProps) {
         )}
       </div>
 
-      {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
+      {isLoading && (
+        <div className="flex flex-col items-center gap-6">
+          <Skeleton className="h-45 w-45 rounded-full" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
+          <Skeleton className="h-48 w-full rounded-2xl" />
+        </div>
+      )}
 
       {error && (
         <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400" role="alert">

@@ -110,3 +110,24 @@ export const SORT_LABELS: Record<SortOption, string> = {
 };
 
 export type Theme = "light" | "dark";
+
+export interface DashboardCandidate {
+  id: string;
+  job_id: string;
+  job_title: string;
+  candidate_name: string | null;
+  resume_filename: string;
+  match_score: number;
+  recommendation: Recommendation;
+  created_at: string;
+}
+
+export interface DashboardSummary {
+  totalJobs: number;
+  totalCandidates: number;
+  averageScore: number | null;
+  recommendationCounts: Record<Recommendation, number>;
+  scoreDistribution: { bucket: string; count: number }[];
+  topCandidates: DashboardCandidate[];
+  recentCandidates: DashboardCandidate[];
+}

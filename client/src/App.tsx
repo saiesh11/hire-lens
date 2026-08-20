@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { SignedIn, SignedOut, SignIn, UserButton, OrganizationSwitcher, OrganizationList, useAuth } from "@clerk/clerk-react";
 import { Sun, Moon, Settings as SettingsIcon } from "lucide-react";
+import { Dashboard } from "./pages/Dashboard";
 import { Jobs } from "./pages/Jobs";
 import { JobDetail } from "./pages/JobDetail";
 import { CandidateDetail } from "./pages/CandidateDetail";
@@ -9,6 +10,7 @@ import { getPreferredTheme, setStoredTheme } from "./lib/preferences";
 import type { Theme } from "./lib/types";
 
 type View =
+  | { name: "dashboard" }
   | { name: "jobs" }
   | { name: "job-detail"; jobId: string }
   | { name: "candidate-detail"; candidateId: string; jobId: string }
@@ -26,22 +28,29 @@ function LensMark() {
 
 function NavBar({
   onHome,
+  onJobs,
   onSettings,
   theme,
   onToggleTheme,
 }: {
   onHome: () => void;
+  onJobs: () => void;
   onSettings: () => void;
   theme: Theme;
   onToggleTheme: () => void;
 }) {
   return (
     <nav className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
-      <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
-        <button onClick={onHome} className="flex items-center gap-2 text-base font-semibold text-foreground">
-          <LensMark />
-          HireLens
-        </button>
+      <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-5">
+          <button onClick={onHome} className="flex items-center gap-2 text-base font-semibold text-foreground">
+            <LensMark />
+            HireLens
+          </button>
+          <button onClick={onJobs} className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+            Jobs
+          </button>
+        </div>
         <div className="flex items-center gap-1">
           <button
             onClick={onToggleTheme}
@@ -71,7 +80,7 @@ function NavBar({
 
 function AppContent() {
   const { orgId } = useAuth();
-  const [view, setView] = useState<View>({ name: "jobs" });
+  const [view, setView] = useState<View>({ name: "dashboard" });
   const [jobsRefreshKey, setJobsRefreshKey] = useState(0);
   const [theme, setTheme] = useState<Theme>(getPreferredTheme);
 
@@ -79,10 +88,10 @@ function AppContent() {
   // <OrganizationSwitcher /> can leave the current view pointing at data
   // that no longer belongs to it (or a stale, unrefreshed Jobs list — its
   // own fetch effect only re-runs on jobsRefreshKey, not on org changes).
-  // Snap back to the Jobs list and force a fresh fetch scoped to whichever
+  // Snap back to the Dashboard and force a fresh fetch scoped to whichever
   // org is now active, rather than risk showing another org's data or a 404.
   useEffect(() => {
-    setView({ name: "jobs" });
+    setView({ name: "dashboard" });
     setJobsRefreshKey((k) => k + 1);
   }, [orgId]);
 
@@ -95,11 +104,20 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-background">
       <NavBar
-        onHome={() => setView({ name: "jobs" })}
+        onHome={() => setView({ name: "dashboard" })}
+        onJobs={() => setView({ name: "jobs" })}
         onSettings={() => setView({ name: "settings" })}
         theme={theme}
         onToggleTheme={toggleTheme}
       />
+
+      {view.name === "dashboard" && (
+        <Dashboard
+          refreshKey={jobsRefreshKey}
+          onSelectCandidate={(candidateId, jobId) => setView({ name: "candidate-detail", candidateId, jobId })}
+          onCreateJob={() => setView({ name: "jobs" })}
+        />
+      )}
 
       {view.name === "jobs" && (
         <Jobs
