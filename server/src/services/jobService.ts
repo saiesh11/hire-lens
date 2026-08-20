@@ -6,6 +6,7 @@ export interface JobRow {
   created_at: string;
   title: string;
   jd_text: string;
+  jd_updated_at: string;
 }
 
 export interface JobListItem {
@@ -60,7 +61,7 @@ export async function listJobs(userId: string): Promise<JobListItem[]> {
 export async function getJobById(id: string, userId: string): Promise<JobRow | null> {
   const { data, error } = await supabase
     .from("jobs")
-    .select("id, user_id, created_at, title, jd_text")
+    .select("id, user_id, created_at, title, jd_text, jd_updated_at")
     .eq("id", id)
     .eq("user_id", userId)
     .maybeSingle();
@@ -79,7 +80,30 @@ export async function updateJob(
 ): Promise<JobRow | null> {
   const patch: Record<string, string> = {};
   if (updates.title !== undefined) patch.title = updates.title;
-  if (updates.jdText !== undefined) patch.jd_text = updates.jdText;
+
+  if (updates.jdText !== undefined) {
+    // Bump jd_updated_at only if the text actually changed — the frontend's
+    // edit form submits title+jdText together on every save, so "field was
+    // present in the request" is not a valid proxy for "field changed."
+    const { data: current, error: fetchError } = await supabase
+      .from("jobs")
+      .select("jd_text")
+      .eq("id", id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (fetchError) {
+      throw new SupabaseServiceError(fetchError.message);
+    }
+    if (!current) {
+      return null;
+    }
+
+    patch.jd_text = updates.jdText;
+    if (current.jd_text !== updates.jdText) {
+      patch.jd_updated_at = new Date().toISOString();
+    }
+  }
 
   const { data, error } = await supabase
     .from("jobs")

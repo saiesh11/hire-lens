@@ -4,14 +4,14 @@ export function InterviewQuestions({ questions }: { questions: string[] }) {
   if (questions.length === 0) return null;
 
   return (
-    <Card className="rounded-2xl border-indigo-200 bg-indigo-50 shadow-sm">
+    <Card className="rounded-2xl border-indigo-200 bg-indigo-50 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-950/20">
       <CardHeader>
-        <CardTitle className="text-base text-indigo-900">Suggested Interview Questions</CardTitle>
+        <CardTitle className="text-base text-indigo-900 dark:text-indigo-300">Suggested Interview Questions</CardTitle>
       </CardHeader>
       <CardContent>
         <ol className="flex list-decimal flex-col gap-2 pl-5">
           {questions.map((q, i) => (
-            <li key={i} className="text-sm text-indigo-900">
+            <li key={i} className="text-sm text-indigo-900 dark:text-indigo-300">
               {q}
             </li>
           ))}

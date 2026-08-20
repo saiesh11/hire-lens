@@ -69,8 +69,8 @@ export function Jobs({ refreshKey, onSelect, onCreated }: JobsProps) {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 px-4 py-12">
       <div className="text-center">
-        <h1 className="text-4xl font-bold tracking-tight text-gray-900">HireLens</h1>
-        <p className="mt-3 text-base text-gray-500">
+        <h1 className="text-4xl font-bold tracking-tight text-foreground">HireLens</h1>
+        <p className="mt-3 text-base text-muted-foreground">
           Create a job, then score as many candidate resumes against it as you like — ranked,
           explained, and backed by evidence.
         </p>
@@ -80,7 +80,7 @@ export function Jobs({ refreshKey, onSelect, onCreated }: JobsProps) {
         <CardContent>
           <form onSubmit={handleCreate} className="flex flex-col gap-5">
             <div>
-              <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-gray-700">
+              <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-foreground">
                 Job Title
               </label>
               <input
@@ -93,7 +93,7 @@ export function Jobs({ refreshKey, onSelect, onCreated }: JobsProps) {
               />
             </div>
             <div>
-              <label htmlFor="jd" className="mb-1.5 block text-sm font-medium text-gray-700">
+              <label htmlFor="jd" className="mb-1.5 block text-sm font-medium text-foreground">
                 Job Description
               </label>
               <Textarea
@@ -107,7 +107,7 @@ export function Jobs({ refreshKey, onSelect, onCreated }: JobsProps) {
               />
             </div>
             {createError && (
-              <p className="text-sm text-red-600" role="alert">
+              <p className="text-sm text-red-600 dark:text-red-400" role="alert">
                 {createError}
               </p>
             )}
@@ -124,12 +124,12 @@ export function Jobs({ refreshKey, onSelect, onCreated }: JobsProps) {
       </Card>
 
       <div>
-        <h2 className="mb-4 text-xl font-bold tracking-tight text-gray-900">Your Jobs</h2>
+        <h2 className="mb-4 text-xl font-bold tracking-tight text-foreground">Your Jobs</h2>
 
-        {isLoading && <p className="text-sm text-gray-500">Loading...</p>}
+        {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
 
         {loadError && (
-          <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">
+          <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400" role="alert">
             {loadError}
           </p>
         )}
@@ -137,7 +137,7 @@ export function Jobs({ refreshKey, onSelect, onCreated }: JobsProps) {
         {!isLoading && !loadError && jobs.length === 0 && (
           <Card className="rounded-2xl border-dashed">
             <CardContent className="text-center">
-              <p className="text-sm text-gray-500">No jobs yet. Create one above to get started.</p>
+              <p className="text-sm text-muted-foreground">No jobs yet. Create one above to get started.</p>
             </CardContent>
           </Card>
         )}
@@ -147,13 +147,13 @@ export function Jobs({ refreshKey, onSelect, onCreated }: JobsProps) {
             <li key={job.id}>
               <button
                 onClick={() => onSelect(job.id)}
-                className="flex w-full items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md sm:p-5"
+                className="flex w-full items-center justify-between gap-4 rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md sm:p-5 dark:hover:border-indigo-700"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-gray-900">{job.title}</p>
-                  <p className="text-sm text-gray-500">{new Date(job.created_at).toLocaleString()}</p>
+                  <p className="truncate font-medium text-foreground">{job.title}</p>
+                  <p className="text-sm text-muted-foreground">{new Date(job.created_at).toLocaleString()}</p>
                 </div>
-                <Badge variant="outline" className="h-auto shrink-0 rounded-full border-transparent bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700">
+                <Badge variant="outline" className="h-auto shrink-0 rounded-full border-transparent bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">
                   {job.candidate_count} candidate{job.candidate_count === 1 ? "" : "s"}
                 </Badge>
               </button>

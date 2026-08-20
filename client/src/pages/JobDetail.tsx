@@ -4,9 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RecommendationBadge } from "../components/RecommendationBadge";
+import { StaleBadge } from "../components/StaleBadge";
 import { BulkUploadForm } from "../components/BulkUploadForm";
 import { useApi, ApiError } from "../lib/api";
-import type { JobDetail as JobDetailType, Recommendation } from "../lib/types";
+import { getDefaultSort } from "../lib/preferences";
+import { SORT_LABELS, isCandidateStale } from "../lib/types";
+import type { JobDetail as JobDetailType, Recommendation, SortOption } from "../lib/types";
 
 interface JobDetailProps {
   jobId: string;
@@ -15,15 +18,6 @@ interface JobDetailProps {
   onJobDeleted: () => void;
 }
 
-type SortOption = "score-desc" | "score-asc" | "newest" | "recommendation";
-
-const SORT_LABELS: Record<SortOption, string> = {
-  "score-desc": "Score (High to Low)",
-  "score-asc": "Score (Low to High)",
-  newest: "Newest First",
-  recommendation: "Recommendation",
-};
-
 const RECOMMENDATION_RANK: Record<Recommendation, number> = {
   strong_match: 0,
   possible_match: 1,
@@ -31,16 +25,16 @@ const RECOMMENDATION_RANK: Record<Recommendation, number> = {
 };
 
 function scoreClasses(score: number): string {
-  if (score >= 75) return "bg-green-100 text-green-800";
-  if (score >= 50) return "bg-amber-100 text-amber-800";
-  return "bg-red-100 text-red-800";
+  if (score >= 75) return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
+  if (score >= 50) return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300";
+  return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300";
 }
 
 function rankClasses(rank: number): string {
-  if (rank === 1) return "bg-amber-100 text-amber-800";
-  if (rank === 2) return "bg-gray-200 text-gray-700";
-  if (rank === 3) return "bg-orange-100 text-orange-800";
-  return "bg-gray-100 text-gray-500";
+  if (rank === 1) return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300";
+  if (rank === 2) return "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300";
+  if (rank === 3) return "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300";
+  return "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400";
 }
 
 export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: JobDetailProps) {
@@ -54,7 +48,7 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
   const [editJdText, setEditJdText] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  const [sortOption, setSortOption] = useState<SortOption>("score-desc");
+  const [sortOption, setSortOption] = useState<SortOption>(getDefaultSort);
   const candidatesRef = useRef<HTMLDivElement>(null);
 
   // Silent background refresh — re-fetches the job without touching isLoading,
@@ -137,14 +131,14 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">
-      <Button variant="link" onClick={onBack} className="mb-6 h-auto p-0 text-sm font-medium text-indigo-600 hover:text-indigo-800">
+      <Button variant="link" onClick={onBack} className="mb-6 h-auto p-0 text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">
         ← Back to Jobs
       </Button>
 
-      {isLoading && <p className="text-sm text-gray-500">Loading...</p>}
+      {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
 
       {loadError && (
-        <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">
+        <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400" role="alert">
           {loadError}
         </p>
       )}
@@ -186,7 +180,7 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
               ) : (
                 <>
                   <div className="flex items-start justify-between gap-4">
-                    <h1 className="text-xl font-bold tracking-tight text-gray-900">{job.title}</h1>
+                    <h1 className="text-xl font-bold tracking-tight text-foreground">{job.title}</h1>
                     <div className="flex shrink-0 gap-2">
                       <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="h-auto rounded-lg px-3 py-1.5">
                         Edit
@@ -196,7 +190,7 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
                       </Button>
                     </div>
                   </div>
-                  <p className="mt-3 whitespace-pre-wrap text-sm text-gray-600">{job.jd_text}</p>
+                  <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">{job.jd_text}</p>
                 </>
               )}
             </CardContent>
@@ -204,7 +198,7 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
 
           <Card className="rounded-2xl shadow-sm">
             <CardContent>
-              <h2 className="mb-4 text-base font-semibold text-gray-900">Add Candidates</h2>
+              <h2 className="mb-4 text-base font-semibold text-foreground">Add Candidates</h2>
               <BulkUploadForm
                 onUploadFile={(file) => createCandidate(jobId, file)}
                 onCandidateAdded={refreshJob}
@@ -214,7 +208,7 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
 
           <div ref={candidatesRef}>
             <div className="mb-4 flex items-center justify-between gap-4">
-              <h2 className="text-xl font-bold tracking-tight text-gray-900">
+              <h2 className="text-xl font-bold tracking-tight text-foreground">
                 Candidates ({job.candidates.length})
               </h2>
               {job.candidates.length > 1 && (
@@ -236,7 +230,7 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
             {sortedCandidates.length === 0 ? (
               <Card className="rounded-2xl border-dashed">
                 <CardContent className="text-center">
-                  <p className="text-sm text-gray-500">No candidates yet. Add resumes above.</p>
+                  <p className="text-sm text-muted-foreground">No candidates yet. Add resumes above.</p>
                 </CardContent>
               </Card>
             ) : (
@@ -245,7 +239,7 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
                   <li key={c.id}>
                     <button
                       onClick={() => onSelectCandidate(c.id)}
-                      className="flex w-full items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md sm:p-5"
+                      className="flex w-full items-center gap-4 rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md sm:p-5 dark:hover:border-indigo-700"
                     >
                       <span
                         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${rankClasses(i + 1)}`}
@@ -253,10 +247,11 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
                         {i + 1}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-gray-900">{c.resume_filename}</p>
-                        <p className="text-sm text-gray-500">{new Date(c.created_at).toLocaleString()}</p>
+                        <p className="truncate font-medium text-foreground">{c.resume_filename}</p>
+                        <p className="text-sm text-muted-foreground">{new Date(c.created_at).toLocaleString()}</p>
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
+                        {isCandidateStale(c.scored_at, job.jd_updated_at) && <StaleBadge />}
                         <RecommendationBadge recommendation={c.recommendation} />
                         <span className={`inline-flex h-5 items-center rounded-full px-3 py-1 text-sm font-semibold ${scoreClasses(c.match_score)}`}>
                           {c.match_score}

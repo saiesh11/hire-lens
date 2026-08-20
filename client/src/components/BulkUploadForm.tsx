@@ -109,20 +109,22 @@ export function BulkUploadForm({ onUploadFile, onCandidateAdded }: BulkUploadFor
         }}
         disabled={isProcessing}
         className={`flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors ${
-          isDragging ? "border-indigo-400 bg-indigo-50" : "border-gray-300 bg-gray-50 hover:border-indigo-300 hover:bg-indigo-50/40"
+          isDragging
+            ? "border-indigo-400 bg-indigo-50 dark:border-indigo-600 dark:bg-indigo-950/30"
+            : "border-gray-300 bg-gray-50 hover:border-indigo-300 hover:bg-indigo-50/40 dark:border-gray-700 dark:bg-gray-900/40 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/20"
         } disabled:cursor-not-allowed disabled:opacity-60`}
       >
-        <svg viewBox="0 0 24 24" className="h-7 w-7 text-indigo-500" fill="none">
+        <svg viewBox="0 0 24 24" className="h-7 w-7 text-indigo-500 dark:text-indigo-400" fill="none">
           <path d="M12 16V4m0 0L7 9m5-5l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span className="text-sm text-gray-500">
-          <span className="font-medium text-indigo-600">Click to upload</span> or drag and drop one or more PDFs
+        <span className="text-sm text-muted-foreground">
+          <span className="font-medium text-indigo-600 dark:text-indigo-400">Click to upload</span> or drag and drop one or more PDFs
         </span>
       </button>
 
       {validationError && (
-        <p className="text-sm text-red-600" role="alert">
+        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
           {validationError}
         </p>
       )}
@@ -132,24 +134,24 @@ export function BulkUploadForm({ onUploadFile, onCandidateAdded }: BulkUploadFor
           {entries.map((entry) => (
             <li
               key={entry.id}
-              className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3.5 py-2.5"
+              className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3.5 py-2.5"
             >
-              <span className="min-w-0 truncate text-sm text-gray-800">{entry.file.name}</span>
+              <span className="min-w-0 truncate text-sm text-foreground">{entry.file.name}</span>
               <div className="flex shrink-0 items-center gap-2">
                 {entry.status === "queued" && <Badge variant="secondary">Queued</Badge>}
                 {entry.status === "scoring" && (
-                  <Badge variant="secondary" className="bg-indigo-100 text-indigo-700">
+                  <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">
                     Scoring...
                   </Badge>
                 )}
                 {entry.status === "done" && (
-                  <Badge variant="outline" className="border-transparent bg-green-100 text-green-800">
+                  <Badge variant="outline" className="border-transparent bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
                     Score {entry.score}
                   </Badge>
                 )}
                 {entry.status === "failed" && (
                   <>
-                    <span className="max-w-[16rem] truncate text-xs text-red-600" title={entry.error}>
+                    <span className="max-w-[16rem] truncate text-xs text-red-600 dark:text-red-400" title={entry.error}>
                       {entry.error}
                     </span>
                     <Button
@@ -169,7 +171,7 @@ export function BulkUploadForm({ onUploadFile, onCandidateAdded }: BulkUploadFor
                     type="button"
                     onClick={() => removeEntry(entry.id)}
                     disabled={isProcessing}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                     aria-label={`Remove ${entry.file.name}`}
                   >
                     ×

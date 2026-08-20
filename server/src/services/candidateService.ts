@@ -7,8 +7,10 @@ export interface CandidateRow {
   job_id: string;
   user_id: string;
   created_at: string;
+  scored_at: string;
   resume_text: string;
   resume_filename: string;
+  resume_storage_path: string | null;
   match_score: number;
   recommendation: Recommendation;
   criteria: AnalysisResult["criteria"];
@@ -19,10 +21,19 @@ export interface CandidateRow {
   summary: string;
 }
 
+export interface CandidateWithJobRow extends CandidateRow {
+  job_jd_updated_at: string;
+}
+
 export type CandidateListItem = Pick<
   CandidateRow,
-  "id" | "created_at" | "resume_filename" | "match_score" | "recommendation"
+  "id" | "created_at" | "scored_at" | "resume_filename" | "match_score" | "recommendation"
 >;
+
+export interface DeleteCandidateResult {
+  deleted: boolean;
+  resumeStoragePath: string | null;
+}
 
 export { SupabaseServiceError };
 
@@ -31,6 +42,7 @@ export async function createCandidate(input: {
   userId: string;
   resumeText: string;
   resumeFilename: string;
+  resumeStoragePath: string | null;
   result: AnalysisResult;
 }): Promise<CandidateRow> {
   const { data, error } = await supabase
@@ -40,6 +52,7 @@ export async function createCandidate(input: {
       user_id: input.userId,
       resume_text: input.resumeText,
       resume_filename: input.resumeFilename,
+      resume_storage_path: input.resumeStoragePath,
       match_score: input.result.matchScore,
       recommendation: input.result.recommendation,
       criteria: input.result.criteria,
@@ -59,13 +72,43 @@ export async function createCandidate(input: {
   return data as CandidateRow;
 }
 
+export async function updateCandidateScorecard(
+  id: string,
+  userId: string,
+  result: AnalysisResult,
+): Promise<CandidateRow | null> {
+  const { data, error } = await supabase
+    .from("candidates")
+    .update({
+      match_score: result.matchScore,
+      recommendation: result.recommendation,
+      criteria: result.criteria,
+      skills_matrix: result.skillsMatrix,
+      strengths: result.strengths,
+      gaps: result.gaps,
+      interview_questions: result.interviewQuestions,
+      summary: result.summary,
+      scored_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select()
+    .maybeSingle();
+
+  if (error) {
+    throw new SupabaseServiceError(error.message);
+  }
+
+  return data as CandidateRow | null;
+}
+
 export async function listCandidatesForJob(
   jobId: string,
   userId: string,
 ): Promise<CandidateListItem[]> {
   const { data, error } = await supabase
     .from("candidates")
-    .select("id, created_at, resume_filename, match_score, recommendation")
+    .select("id, created_at, scored_at, resume_filename, match_score, recommendation")
     .eq("job_id", jobId)
     .eq("user_id", userId)
     .order("match_score", { ascending: false });
@@ -77,10 +120,32 @@ export async function listCandidatesForJob(
   return data ?? [];
 }
 
-export async function getCandidateById(id: string, userId: string): Promise<CandidateRow | null> {
+export async function listCandidateStoragePathsForJob(
+  jobId: string,
+  userId: string,
+): Promise<string[]> {
   const { data, error } = await supabase
     .from("candidates")
-    .select("*")
+    .select("resume_storage_path")
+    .eq("job_id", jobId)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new SupabaseServiceError(error.message);
+  }
+
+  return (data ?? [])
+    .map((row) => row.resume_storage_path)
+    .filter((path): path is string => path !== null);
+}
+
+export async function getCandidateById(
+  id: string,
+  userId: string,
+): Promise<CandidateWithJobRow | null> {
+  const { data, error } = await supabase
+    .from("candidates")
+    .select("*, jobs(jd_updated_at)")
     .eq("id", id)
     .eq("user_id", userId)
     .maybeSingle();
@@ -88,21 +153,28 @@ export async function getCandidateById(id: string, userId: string): Promise<Cand
   if (error) {
     throw new SupabaseServiceError(error.message);
   }
+  if (!data) {
+    return null;
+  }
 
-  return data as CandidateRow | null;
+  const { jobs, ...candidate } = data as CandidateRow & {
+    jobs: { jd_updated_at: string } | null;
+  };
+  return { ...candidate, job_jd_updated_at: jobs?.jd_updated_at ?? candidate.created_at };
 }
 
-export async function deleteCandidate(id: string, userId: string): Promise<boolean> {
+export async function deleteCandidate(id: string, userId: string): Promise<DeleteCandidateResult> {
   const { data, error } = await supabase
     .from("candidates")
     .delete()
     .eq("id", id)
     .eq("user_id", userId)
-    .select("id");
+    .select("id, resume_storage_path");
 
   if (error) {
     throw new SupabaseServiceError(error.message);
   }
 
-  return (data?.length ?? 0) > 0;
+  const row = data?.[0];
+  return { deleted: !!row, resumeStoragePath: row?.resume_storage_path ?? null };
 }

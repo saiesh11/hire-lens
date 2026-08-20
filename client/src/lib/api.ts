@@ -101,6 +101,15 @@ export function useApi() {
     if (!res.ok) throw new ApiError(await parseErrorMessage(res));
   }
 
+  async function reanalyzeCandidate(id: string): Promise<CandidateDetail> {
+    const res = await fetch(`/api/candidates/${id}/reanalyze`, {
+      method: "POST",
+      headers: await authHeader(),
+    });
+    if (!res.ok) throw new ApiError(await parseErrorMessage(res));
+    return res.json();
+  }
+
   return {
     createJob,
     listJobs,
@@ -110,5 +119,6 @@ export function useApi() {
     createCandidate,
     getCandidate,
     deleteCandidate,
+    reanalyzeCandidate,
   };
 }

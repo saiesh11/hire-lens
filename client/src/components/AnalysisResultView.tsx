@@ -35,7 +35,7 @@ export function AnalysisResultView({
         <CardContent className="flex flex-col items-center gap-3">
           <ScoreGauge score={match_score} />
           <RecommendationBadge recommendation={recommendation} />
-          <p className="mt-1 text-center text-gray-600">{summary}</p>
+          <p className="mt-1 text-center text-muted-foreground">{summary}</p>
         </CardContent>
       </Card>
       <CriteriaBreakdown criteria={criteria} />

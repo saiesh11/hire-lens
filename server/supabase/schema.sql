@@ -75,3 +75,21 @@ begin
     alter table analyses rename to analyses_legacy;
   end if;
 end $$;
+
+-- Phase 4 addendum: JD staleness + manual re-analyze. Order matters here —
+-- `now()` is evaluated once per statement, not once per row, so jobs must be
+-- stamped before candidates or every pre-existing candidate would look stale
+-- the instant this migration runs (scored_at would be later than
+-- jd_updated_at for every row).
+alter table jobs add column if not exists jd_updated_at timestamptz not null default now();
+alter table candidates add column if not exists scored_at timestamptz not null default now();
+alter table candidates add column if not exists resume_storage_path text;
+
+-- Private bucket for original resume PDFs, so manual re-analyze can re-score
+-- from the actual PDF (Claude reads PDFs natively) instead of the lossier
+-- pdf-parse text kept only for display. No storage.objects RLS policies are
+-- needed — this bucket is only ever touched by the service-role client
+-- (see lib/supabaseAdmin.ts), which bypasses RLS entirely.
+insert into storage.buckets (id, name, public)
+values ('resumes', 'resumes', false)
+on conflict (id) do nothing;

@@ -9,7 +9,8 @@ import {
   updateJob,
   SupabaseServiceError,
 } from "../services/jobService.js";
-import { listCandidatesForJob } from "../services/candidateService.js";
+import { listCandidatesForJob, listCandidateStoragePathsForJob } from "../services/candidateService.js";
+import { deleteResumeFiles } from "../services/resumeStorageService.js";
 
 export const jobsRouter = Router();
 
@@ -113,10 +114,14 @@ jobsRouter.delete("/jobs/:id", async (req, res) => {
   }
 
   try {
+    // Fetched before deleting — on delete cascade removes the candidate rows
+    // in Postgres, so they'd be gone before a post-delete select could see them.
+    const storagePaths = await listCandidateStoragePathsForJob(req.params.id, userId);
     const deleted = await deleteJob(req.params.id, userId);
     if (!deleted) {
       return res.status(404).json({ error: "Job not found" });
     }
+    await deleteResumeFiles(storagePaths);
     return res.status(204).send();
   } catch (error) {
     if (error instanceof SupabaseServiceError) {

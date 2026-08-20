@@ -83,14 +83,28 @@ No backend changes were needed for this phase — `POST /api/jobs/:id/candidates
 
 **A real bug found via live testing, not just a design nicety:** `JobDetail`'s candidate-list refresh (after each candidate upload) was originally implemented by bumping a `refreshKey` that the data-loading `useEffect` depended on — and that effect sets `isLoading = true` at its start. Since the whole page (including the actively-uploading `BulkUploadForm`) was only rendered when `!isLoading`, every single completed upload in a batch briefly unmounted the entire page, destroying `BulkUploadForm`'s local queue state, then remounted a *fresh, empty* form once the refetch finished — so uploading 5 resumes lost files 2–5 from view after the first one completed. Fixed by splitting the initial (blocking) load from a `refreshJob()` background refresh that only updates `job` state and never touches `isLoading`, so the page — and any component with in-progress local state — never unmounts on a background refresh. General lesson for this codebase: a "loading" flag that hides an entire subtree is only safe for the *initial* load, not for refreshing already-displayed data that some child component might be actively tracking state against.
 
+## JD staleness + manual re-analyze (Phase 4 addendum)
+
+Candidate scorecards are frozen at upload time — editing a job's JD never retroactively re-scores existing candidates. That's correct (re-scoring silently would be surprising), but it used to be invisible: a job's candidate list could mix candidates scored against different JD versions with no indicator. Two additions close that gap:
+
+- **Stale badge.** `jobs.jd_updated_at` bumps only when `jd_text` actually changes — `jobService.updateJob` fetches the current `jd_text` first and compares, because the edit form in `JobDetail.tsx` always submits `title` + `jdText` together, so "the field was present in the request" is not a valid proxy for "the field changed." `candidates.scored_at` (distinct from `created_at`, which still means "when this candidate was added," used for the Newest-First sort) advances on both initial scoring and every re-analyze. A candidate is stale when `scored_at < job.jd_updated_at` (`lib/types.ts`'s `isCandidateStale`), shown as a small amber `StaleBadge` on the `JobDetail` row and the `CandidateDetail` header.
+- **Manual re-analyze.** `POST /api/candidates/:id/reanalyze` re-runs the *existing* `claudeService.analyzeResumeAgainstJob` against the job's current `jd_text`, using the **original uploaded PDF** — not the stored `resume_text`, which is the lossier pdf-parse fallback used only for display. This meant the app needed to start persisting uploaded PDFs, which it didn't before (multer previously held the buffer in memory for the request only).
+
+**Storage: a private Supabase Storage bucket (`resumes`), touched only by a service-role client.** This app has no Supabase Auth session — Clerk verifies identity, and Express talks to Supabase with a bare anon key that never signs in as a Supabase user — so `auth.uid()`-scoped storage RLS policies for the anon key aren't just inconsistent with the architecture, they're not functional here at all. `lib/supabaseAdmin.ts` holds a second client built with the service-role key (`SUPABASE_SERVICE_ROLE_KEY`, server-only, never sent to the client) used *exclusively* for Storage operations in `resumeStorageService.ts`; the anon `supabase` client in `lib/supabase.ts` keeps handling every table query, unchanged. **This is a convention, not an enforced boundary** — the service-role client bypasses RLS on everything, so it must never be imported into `jobService.ts`/`candidateService.ts`, whose safety already depends entirely on the app-code `user_id` scoping now that RLS is off.
+
+Resume uploads are stored at `${userId}/${randomUUID()}.pdf`, written alongside scoring as a third, equally non-fatal `Promise.all` branch in `POST /jobs/:jobId/candidates` (same precedent as the existing `extractResumeText` fallback) — a storage failure just leaves `resume_storage_path: null` on that candidate, degrading its re-analyze button to disabled-with-a-tooltip rather than failing candidate creation. The same applies to every candidate that predates this migration. Deleting a candidate or a job best-effort-cleans-up its storage file(s) (`resumeStorageService.deleteResumeFiles`, catches and logs, never throws) — for a job delete, `candidateService.listCandidateStoragePathsForJob` has to run *before* `deleteJob`, since `on delete cascade` removes the candidate rows inside Postgres before a post-delete query could ever see them.
+
 ## File map
 
 ```
 server/src/
-  lib/          env validation, Supabase client, Anthropic client + model constant
+  lib/          env validation, Supabase client (anon, table queries), supabaseAdmin (service-role,
+                 Storage only), Anthropic client + model constant
   services/     pdfService (pdf-parse, storage-only text extraction), claudeService (native-PDF scoring),
-                 jobService (Job CRUD), candidateService (Candidate CRUD)
-  routes/       jobs.ts (Job CRUD + composed job-with-candidates GET), candidates.ts (create/get/delete a candidate)
+                 jobService (Job CRUD), candidateService (Candidate CRUD), resumeStorageService
+                 (original resume PDFs in the private `resumes` bucket)
+  routes/       jobs.ts (Job CRUD + composed job-with-candidates GET), candidates.ts (create/get/delete/
+                 reanalyze a candidate)
   schemas.ts    Zod schemas: analysisResultSchema (shared with the Claude structured-output call),
                  createJobSchema / updateJobSchema (request validation)
 
@@ -98,6 +112,7 @@ client/src/
   lib/          api.ts (useApi() hook — token-attached fetch wrappers), types.ts (shared with server's DB row shape, kept in sync by hand)
   components/   UploadForm (single-file, unused since Phase 3 but kept — still works), BulkUploadForm (multi-file
                  queue with per-file retry, used by JobDetail), ScoreGauge (SVG ring), RecommendationBadge,
+                 StaleBadge (candidate scored before the job's JD was last edited),
                  CriteriaBreakdown, SkillsMatrixTable, StrengthsGapsList, InterviewQuestions,
                  AnalysisResultView (composes the scorecard components — unchanged since v2, just fed from a Candidate now)
   pages/        Jobs (landing page — create + list), JobDetail (JD, bulk-upload form, sortable ranked candidate list),

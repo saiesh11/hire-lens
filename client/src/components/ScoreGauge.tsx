@@ -45,7 +45,7 @@ export function ScoreGauge({ score }: ScoreGaugeProps) {
   return (
     <div className="relative" style={{ width: SIZE, height: SIZE }}>
       <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="-rotate-90">
-        <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS} fill="none" stroke="#e5e7eb" strokeWidth="16" />
+        <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS} fill="none" className="stroke-gray-200 dark:stroke-gray-700" strokeWidth="16" />
         <circle
           cx={SIZE / 2}
           cy={SIZE / 2}
@@ -63,7 +63,7 @@ export function ScoreGauge({ score }: ScoreGaugeProps) {
         <span className="text-5xl font-bold tabular-nums" style={{ color }}>
           {animatedNumber}
         </span>
-        <span className="text-sm text-gray-500">Match Score</span>
+        <span className="text-sm text-muted-foreground">Match Score</span>
       </div>
     </div>
   );
