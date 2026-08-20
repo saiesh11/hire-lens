@@ -70,7 +70,7 @@ export function Jobs({ refreshKey, onSelect, onCreated }: JobsProps) {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 px-4 py-12">
       <div className="text-center">
-        <h1 className="text-4xl font-bold tracking-tight text-foreground">HireLens</h1>
+        <h1 className="text-4xl font-bold tracking-tight font-display text-foreground">HireLens</h1>
         <p className="mt-3 text-base text-muted-foreground">
           Create a job, then score as many candidate resumes against it as you like — ranked,
           explained, and backed by evidence.

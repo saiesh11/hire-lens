@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RecommendationBadge } from "../components/RecommendationBadge";
 import { StaleBadge } from "../components/StaleBadge";
 import { GithubSummaryBadge } from "../components/GithubSummaryBadge";
+import { HighlightedSummary } from "../components/HighlightedSummary";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BulkUploadForm } from "../components/BulkUploadForm";
 import { useApi, ApiError } from "../lib/api";
@@ -191,7 +192,7 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
               ) : (
                 <>
                   <div className="flex items-start justify-between gap-4">
-                    <h1 className="text-xl font-bold tracking-tight text-foreground">{job.title}</h1>
+                    <h1 className="text-xl font-bold tracking-tight font-display text-foreground">{job.title}</h1>
                     <div className="flex shrink-0 gap-2">
                       <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="h-auto rounded-lg px-3 py-1.5">
                         Edit
@@ -261,7 +262,11 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium text-foreground">{c.resume_filename}</p>
-                        <p className="text-sm text-muted-foreground">{new Date(c.created_at).toLocaleString()}</p>
+                        {c.summary ? (
+                          <HighlightedSummary summary={c.summary} skillsMatrix={c.skills_matrix} />
+                        ) : (
+                          <p className="text-sm text-muted-foreground">{new Date(c.created_at).toLocaleString()}</p>
+                        )}
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
                         {isCandidateStale(c.scored_at, job.jd_updated_at) && <StaleBadge />}

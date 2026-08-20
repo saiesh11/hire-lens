@@ -129,7 +129,7 @@ export function CandidateDetail({ candidateId, onBack }: CandidateDetailProps) {
         <div className="flex flex-col gap-6" style={{ animation: "hl-fade-up 0.3s ease-out" }}>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold tracking-tight text-foreground">
+              <h1 className="text-xl font-bold tracking-tight font-display text-foreground">
                 {candidate.candidate_name ?? candidate.resume_filename}
               </h1>
               {isCandidateStale(candidate.scored_at, candidate.job_jd_updated_at) && <StaleBadge />}

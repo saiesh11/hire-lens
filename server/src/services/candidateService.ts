@@ -41,6 +41,8 @@ export type CandidateListItem = Pick<
   | "recommendation"
   | "github_username"
   | "github_enrichment"
+  | "summary"
+  | "skills_matrix"
 >;
 
 export interface DeleteCandidateResult {
@@ -154,7 +156,9 @@ export async function listCandidatesForJob(
 ): Promise<CandidateListItem[]> {
   const { data, error } = await supabase
     .from("candidates")
-    .select("id, created_at, scored_at, resume_filename, match_score, recommendation, github_username, github_enrichment")
+    .select(
+      "id, created_at, scored_at, resume_filename, match_score, recommendation, github_username, github_enrichment, summary, skills_matrix",
+    )
     .eq("job_id", jobId)
     .eq("org_id", orgId)
     .order("match_score", { ascending: false });
