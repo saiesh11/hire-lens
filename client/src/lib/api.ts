@@ -1,5 +1,5 @@
 import { useAuth } from "@clerk/clerk-react";
-import type { CandidateDetail, JobDetail, JobListItem } from "./types";
+import type { CandidateDetail, GithubSearchResult, JobDetail, JobListItem } from "./types";
 
 export class ApiError extends Error {}
 
@@ -110,6 +110,22 @@ export function useApi() {
     return res.json();
   }
 
+  async function fetchCandidateGithub(id: string, username: string): Promise<CandidateDetail> {
+    const res = await fetch(`/api/candidates/${id}/github`, {
+      method: "POST",
+      headers: await jsonHeader(),
+      body: JSON.stringify({ username }),
+    });
+    if (!res.ok) throw new ApiError(await parseErrorMessage(res));
+    return res.json();
+  }
+
+  async function searchCandidateGithub(id: string): Promise<GithubSearchResult[]> {
+    const res = await fetch(`/api/candidates/${id}/github/search`, { headers: await authHeader() });
+    if (!res.ok) throw new ApiError(await parseErrorMessage(res));
+    return res.json();
+  }
+
   return {
     createJob,
     listJobs,
@@ -120,5 +136,7 @@ export function useApi() {
     getCandidate,
     deleteCandidate,
     reanalyzeCandidate,
+    fetchCandidateGithub,
+    searchCandidateGithub,
   };
 }

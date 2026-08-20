@@ -117,3 +117,16 @@ begin
     alter table candidates alter column org_id set not null;
   end if;
 end $$;
+
+-- Phase 6: GitHub profile enrichment. Additive and fully nullable — most
+-- candidates won't have a detectable GitHub link, and old candidates simply
+-- have no enrichment, no backfill needed.
+alter table candidates add column if not exists github_username text;
+alter table candidates add column if not exists github_enrichment jsonb;
+alter table candidates add column if not exists github_fetched_at timestamptz;
+
+-- Phase 6 addendum: candidate name, captured by Claude as part of the same
+-- scoring call (no extra API request) so GitHub search-by-name has a name to
+-- search with. Nullable — candidates that predate this get backfilled the
+-- next time they're re-analyzed.
+alter table candidates add column if not exists candidate_name text;

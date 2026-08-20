@@ -18,6 +18,33 @@ export interface EvidenceItem {
   evidence: string;
 }
 
+export interface GithubEnrichment {
+  profile: {
+    login: string;
+    name: string | null;
+    bio: string | null;
+    company: string | null;
+    location: string | null;
+    blog: string | null;
+    avatarUrl: string;
+    htmlUrl: string;
+    publicRepos: number;
+    followers: number;
+  };
+  totalStars: number;
+  topLanguages: { language: string; count: number }[];
+  topRepos: { name: string; description: string | null; language: string | null; stars: number; url: string }[];
+}
+
+export interface GithubSearchResult {
+  login: string;
+  name: string | null;
+  bio: string | null;
+  location: string | null;
+  avatarUrl: string;
+  htmlUrl: string;
+}
+
 export interface CandidateDetail {
   id: string;
   job_id: string;
@@ -35,11 +62,22 @@ export interface CandidateDetail {
   interview_questions: string[];
   summary: string;
   job_jd_updated_at: string;
+  github_username: string | null;
+  github_enrichment: GithubEnrichment | null;
+  github_fetched_at: string | null;
+  candidate_name: string | null;
 }
 
 export type CandidateListItem = Pick<
   CandidateDetail,
-  "id" | "created_at" | "scored_at" | "resume_filename" | "match_score" | "recommendation"
+  | "id"
+  | "created_at"
+  | "scored_at"
+  | "resume_filename"
+  | "match_score"
+  | "recommendation"
+  | "github_username"
+  | "github_enrichment"
 >;
 
 export interface JobListItem {

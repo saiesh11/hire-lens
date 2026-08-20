@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useApi, ApiError } from "../lib/api";
 import { AnalysisResultView } from "../components/AnalysisResultView";
 import { StaleBadge } from "../components/StaleBadge";
+import { GithubProfileCard } from "../components/GithubProfileCard";
 import { isCandidateStale } from "../lib/types";
 import type { CandidateDetail as CandidateDetailType } from "../lib/types";
 
@@ -13,7 +14,7 @@ interface CandidateDetailProps {
 }
 
 export function CandidateDetail({ candidateId, onBack }: CandidateDetailProps) {
-  const { getCandidate, deleteCandidate, reanalyzeCandidate } = useApi();
+  const { getCandidate, deleteCandidate, reanalyzeCandidate, fetchCandidateGithub, searchCandidateGithub } = useApi();
   const { has } = useAuth();
   const isAdmin = has?.({ role: "org:admin" }) ?? false;
   const [candidate, setCandidate] = useState<CandidateDetailType | null>(null);
@@ -121,11 +122,13 @@ export function CandidateDetail({ candidateId, onBack }: CandidateDetailProps) {
         <div className="flex flex-col gap-6" style={{ animation: "hl-fade-up 0.3s ease-out" }}>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold tracking-tight text-foreground">{candidate.resume_filename}</h1>
+              <h1 className="text-xl font-bold tracking-tight text-foreground">
+                {candidate.candidate_name ?? candidate.resume_filename}
+              </h1>
               {isCandidateStale(candidate.scored_at, candidate.job_jd_updated_at) && <StaleBadge />}
             </div>
             <p className="text-sm text-muted-foreground">
-              {new Date(candidate.created_at).toLocaleString()}
+              {candidate.resume_filename} · {new Date(candidate.created_at).toLocaleString()}
             </p>
           </div>
           <AnalysisResultView
@@ -137,6 +140,14 @@ export function CandidateDetail({ candidateId, onBack }: CandidateDetailProps) {
             strengths={candidate.strengths}
             gaps={candidate.gaps}
             interview_questions={candidate.interview_questions}
+          />
+          <GithubProfileCard
+            username={candidate.github_username}
+            enrichment={candidate.github_enrichment}
+            candidateName={candidate.candidate_name}
+            onSubmit={(username) => fetchCandidateGithub(candidate.id, username)}
+            onSearch={() => searchCandidateGithub(candidate.id)}
+            onUpdated={setCandidate}
           />
         </div>
       )}

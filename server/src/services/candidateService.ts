@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase.js";
 import { SupabaseServiceError } from "./jobService.js";
 import type { AnalysisResult, Recommendation } from "../schemas.js";
+import type { GithubEnrichment } from "./githubService.js";
 
 export interface CandidateRow {
   id: string;
@@ -20,6 +21,10 @@ export interface CandidateRow {
   gaps: AnalysisResult["gaps"];
   interview_questions: string[];
   summary: string;
+  github_username: string | null;
+  github_enrichment: GithubEnrichment | null;
+  github_fetched_at: string | null;
+  candidate_name: string | null;
 }
 
 export interface CandidateWithJobRow extends CandidateRow {
@@ -28,7 +33,14 @@ export interface CandidateWithJobRow extends CandidateRow {
 
 export type CandidateListItem = Pick<
   CandidateRow,
-  "id" | "created_at" | "scored_at" | "resume_filename" | "match_score" | "recommendation"
+  | "id"
+  | "created_at"
+  | "scored_at"
+  | "resume_filename"
+  | "match_score"
+  | "recommendation"
+  | "github_username"
+  | "github_enrichment"
 >;
 
 export interface DeleteCandidateResult {
@@ -46,6 +58,8 @@ export async function createCandidate(input: {
   resumeFilename: string;
   resumeStoragePath: string | null;
   result: AnalysisResult;
+  githubUsername: string | null;
+  githubEnrichment: GithubEnrichment | null;
 }): Promise<CandidateRow> {
   const { data, error } = await supabase
     .from("candidates")
@@ -64,6 +78,10 @@ export async function createCandidate(input: {
       gaps: input.result.gaps,
       interview_questions: input.result.interviewQuestions,
       summary: input.result.summary,
+      candidate_name: input.result.candidateName,
+      github_username: input.githubUsername,
+      github_enrichment: input.githubEnrichment,
+      github_fetched_at: input.githubEnrichment ? new Date().toISOString() : null,
     })
     .select()
     .single();
@@ -73,6 +91,30 @@ export async function createCandidate(input: {
   }
 
   return data as CandidateRow;
+}
+
+export async function updateCandidateGithub(
+  id: string,
+  orgId: string,
+  input: { username: string; enrichment: GithubEnrichment },
+): Promise<CandidateRow | null> {
+  const { data, error } = await supabase
+    .from("candidates")
+    .update({
+      github_username: input.username,
+      github_enrichment: input.enrichment,
+      github_fetched_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .select()
+    .maybeSingle();
+
+  if (error) {
+    throw new SupabaseServiceError(error.message);
+  }
+
+  return data as CandidateRow | null;
 }
 
 export async function updateCandidateScorecard(
@@ -91,6 +133,7 @@ export async function updateCandidateScorecard(
       gaps: result.gaps,
       interview_questions: result.interviewQuestions,
       summary: result.summary,
+      candidate_name: result.candidateName,
       scored_at: new Date().toISOString(),
     })
     .eq("id", id)
@@ -111,7 +154,7 @@ export async function listCandidatesForJob(
 ): Promise<CandidateListItem[]> {
   const { data, error } = await supabase
     .from("candidates")
-    .select("id, created_at, scored_at, resume_filename, match_score, recommendation")
+    .select("id, created_at, scored_at, resume_filename, match_score, recommendation, github_username, github_enrichment")
     .eq("job_id", jobId)
     .eq("org_id", orgId)
     .order("match_score", { ascending: false });

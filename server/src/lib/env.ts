@@ -21,4 +21,7 @@ export const env = {
   // instead of as a cryptic 401 on the first request.
   clerkSecretKey: requireEnv("CLERK_SECRET_KEY"),
   clerkPublishableKey: requireEnv("CLERK_PUBLISHABLE_KEY"),
+  // Optional — GitHub enrichment works unauthenticated (60 req/hr), a token
+  // just raises the limit to 5,000/hr. Not required for the app to start.
+  githubToken: process.env.GITHUB_TOKEN,
 };

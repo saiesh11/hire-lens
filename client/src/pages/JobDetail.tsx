@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RecommendationBadge } from "../components/RecommendationBadge";
 import { StaleBadge } from "../components/StaleBadge";
+import { GithubSummaryBadge } from "../components/GithubSummaryBadge";
 import { BulkUploadForm } from "../components/BulkUploadForm";
 import { useApi, ApiError } from "../lib/api";
 import { getDefaultSort } from "../lib/preferences";
@@ -257,6 +258,7 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
                         {isCandidateStale(c.scored_at, job.jd_updated_at) && <StaleBadge />}
+                        {c.github_enrichment && <GithubSummaryBadge enrichment={c.github_enrichment} />}
                         <RecommendationBadge recommendation={c.recommendation} />
                         <span className={`inline-flex h-5 items-center rounded-full px-3 py-1 text-sm font-semibold ${scoreClasses(c.match_score)}`}>
                           {c.match_score}

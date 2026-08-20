@@ -104,26 +104,46 @@ Jobs/candidates moved from `user_id`-scoped to `org_id`-scoped, so a team can sh
 - **Client**: org context rides the same session token `useApi()` already attaches via `getToken()` — no changes needed to `lib/api.ts`. `<OrganizationSwitcher />` sits in the nav bar; `App.tsx`'s `RequireOrganization` wrapper is a defensive fallback (renders Clerk's prebuilt `<OrganizationList />` to pick-or-create an org) for the case where a signed-in user has no active org, since "membership required" is a Dashboard-level setting, not something app code can fully guarantee on its own. Delete buttons are also gated client-side on `useAuth().has({ role: "org:admin" })` — a UX nicety so non-admins don't see a button that would 403; the actual enforcement is server-side.
 - **Migration**: `scripts/backfillOrganizations.ts` is a one-time, idempotent script (only touches rows where `org_id IS NULL`) that creates one Clerk organization per existing user (`clerkClient.organizations.createOrganization({ name, createdBy: userId })` — passing `createdBy` alone makes that user an `org:admin` member, no separate membership call needed) and backfills `org_id` on their existing jobs/candidates. `org_id` couldn't be `not null` at the same time the column was added, since populating it requires calling the Clerk API, not just SQL — `schema.sql`'s enforcement of `not null` is self-guarding (a no-op until every row has an `org_id`, then automatic on a later re-run), so the file stays safe to run in one shot at any time rather than requiring the user to sequence two manual SQL passes around the script.
 
+## GitHub profile enrichment (Phase 6, pivoted from a planned LinkedIn scraper)
+
+Phase 6 was originally scoped as LinkedIn/profile scraping. That carried real, unavoidable legal exposure (ToS breach, GDPR/CCPA on scraped PII) even scoped as conservatively as possible — no login-wall bypass, no bot-detection evasion, public pages only. Pivoted instead to **GitHub profile enrichment via GitHub's official public REST API** (`api.github.com/users/{username}` + `.../repos`) — not scraping at all, a documented, free, ToS-sanctioned API, and arguably more useful signal for a technical-recruiting tool than a LinkedIn scrape would have been (LinkedIn mostly duplicates the resume; GitHub surfaces real technical activity the resume doesn't).
+
+- `services/githubService.ts`: `extractGithubUsername()` regex-scans the already-extracted `resume_text` for a `github.com/<username>` link (best-effort — a wrong match, e.g. a repo link instead of a profile link, is correctable via the manual entry field, not something the extraction tries to solve perfectly). `fetchGithubProfile()` calls both endpoints, excludes forked repos from language/star aggregation (so forking someone else's project doesn't inflate a candidate's own signal), and returns `{ profile, totalStars, topLanguages, topRepos }`.
+- **Auto-detection on upload**: `POST /jobs/:jobId/candidates` runs detection + fetch as a best-effort branch after the existing scoring/text-extraction/storage `Promise.all`, non-fatal exactly like the existing `extractResumeText`/`uploadResumeFile` precedents — most resumes won't match, so this adds no latency for the common case.
+- **Manual entry / correction / refresh**, one endpoint: `POST /candidates/:id/github` — same route serves adding a username the auto-detect missed, fixing a wrong one, or refreshing existing data (re-submit the current username). Not admin-gated, since it's data entry, not a destructive action.
+- **Deliberately kept separate from the Claude match score** — GitHub enrichment renders as its own labeled section (`GithubProfileCard.tsx`) on `CandidateDetail`, not blended into `match_score` or fed into the Claude prompt. Keeps the transparent, evidence-grounded scoring model unchanged and avoids a prompt-engineering change that belongs to Phase 8 (the AI-provider migration), not here.
+- **`GITHUB_TOKEN` is optional**, unlike every other credential in this app. GitHub's API works unauthenticated at 60 requests/hour; a personal access token (sent as `Authorization: Bearer <token>`) raises that to 5,000/hour. Optional so the feature works with zero setup friction, with the token as a pure upgrade if the rate limit becomes a problem.
+
+### Phase 6 addendum: candidate-list badge + name-based search
+
+- **Compact list preview**: `JobDetail`'s candidate rows show a small `GithubSummaryBadge` (`★ <stars> · <top language>`) for any candidate with `github_enrichment` already fetched, so a whole job's candidate list can be scanned for strong GitHub signal without opening each one — `listCandidatesForJob`'s select and `CandidateListItem` were extended with `github_username`/`github_enrichment` to support it. The actual fetch/search UI stays on `CandidateDetail` only; the list row is a single wrapping `<button>` (click-to-navigate), so an interactive form can't be nested there without restructuring it — a non-interactive badge can.
+- **Candidate name capture rides the existing Claude call — not a new request.** `analysisResultSchema` gained `candidateName: z.string().nullable()`; the system prompt in `claudeService.ts` asks Claude to report the resume's name (or `null` if it can't confidently tell), same evidence-grounded, don't-guess framing as every other field. `createCandidate` and `updateCandidateScorecard` (the re-analyze path) both persist it — meaning a candidate uploaded before this shipped gets `candidate_name` backfilled for free the next time someone clicks Re-analyze, no separate migration required. This is the *only* place Claude's output feeds into the GitHub feature (a name to search with) — GitHub data still never feeds back into Claude or `match_score`, unchanged from the base Phase 6 design above.
+- **Search-and-confirm, deliberately not auto-select.** `githubService.searchGithubUsers()` calls GitHub's `/search/users` (the `in:name` qualifier, confirmed against GitHub's search-syntax docs to match real names, not just usernames) and returns up to 5 candidates. **The app never silently picks the "best" match** — GitHub names aren't unique, so a wrong auto-pick would attribute a stranger's repos/activity to the wrong person, which is worse than showing nothing in a hiring context. Instead `GET /candidates/:id/github/search` returns the short list, and `GithubProfileCard.tsx` renders it as clickable rows (avatar/bio/location) — picking one calls the *same* `POST /candidates/:id/github` save path the manual-entry field already uses, so search is just a faster way to fill in a username, not a second code path.
+- **The Search API has its own, much stricter rate limit** than the general REST endpoints used elsewhere in this feature — 10 requests/minute unauthenticated, 30/minute authenticated (vs. 60/hour and 5,000/hour respectively for `/users` and `/users/{username}/repos`). Fine for a one-click-per-candidate, human-triggered search; would not be fine to call automatically or in bulk, which is part of why this stayed a manual action rather than running at upload time alongside the URL-based auto-detection.
+
 ## File map
 
 ```
 server/src/
   lib/          env validation, Supabase client (anon, table queries), supabaseAdmin (service-role,
                  Storage only), Anthropic client + model constant
-  services/     pdfService (pdf-parse, storage-only text extraction), claudeService (native-PDF scoring),
-                 jobService (Job CRUD), candidateService (Candidate CRUD), resumeStorageService
-                 (original resume PDFs in the private `resumes` bucket)
+  services/     pdfService (pdf-parse, storage-only text extraction), claudeService (native-PDF scoring,
+                 also captures candidateName), jobService (Job CRUD), candidateService (Candidate CRUD),
+                 resumeStorageService (original resume PDFs in the private `resumes` bucket),
+                 githubService (GitHub API profile enrichment + name-based search)
   routes/       jobs.ts (Job CRUD + composed job-with-candidates GET), candidates.ts (create/get/delete/
-                 reanalyze a candidate)
+                 reanalyze/github-enrich/github-search a candidate)
   scripts/      backfillOrganizations.ts (one-time Phase 5 migration, run manually via tsx)
-  schemas.ts    Zod schemas: analysisResultSchema (shared with the Claude structured-output call),
-                 createJobSchema / updateJobSchema (request validation)
+  schemas.ts    Zod schemas: analysisResultSchema (shared with the Claude structured-output call,
+                 includes candidateName), createJobSchema / updateJobSchema / setCandidateGithubSchema
 
 client/src/
   lib/          api.ts (useApi() hook — token-attached fetch wrappers), types.ts (shared with server's DB row shape, kept in sync by hand)
   components/   UploadForm (single-file, unused since Phase 3 but kept — still works), BulkUploadForm (multi-file
                  queue with per-file retry, used by JobDetail), ScoreGauge (SVG ring), RecommendationBadge,
                  StaleBadge (candidate scored before the job's JD was last edited),
+                 GithubProfileCard (fetch/search/display GitHub enrichment, own local form state),
+                 GithubSummaryBadge (compact list-row preview of already-fetched enrichment),
                  CriteriaBreakdown, SkillsMatrixTable, StrengthsGapsList, InterviewQuestions,
                  AnalysisResultView (composes the scorecard components — unchanged since v2, just fed from a Candidate now)
   pages/        Jobs (landing page — create + list), JobDetail (JD, bulk-upload form, sortable ranked candidate list),

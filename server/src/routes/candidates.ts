@@ -9,6 +9,7 @@ import {
   deleteCandidate,
   getCandidateById,
   updateCandidateScorecard,
+  updateCandidateGithub,
 } from "../services/candidateService.js";
 import {
   uploadResumeFile,
@@ -16,6 +17,8 @@ import {
   deleteResumeFiles,
   ResumeStorageError,
 } from "../services/resumeStorageService.js";
+import { extractGithubUsername, fetchGithubProfile, searchGithubUsers, GithubApiError } from "../services/githubService.js";
+import { setCandidateGithubSchema } from "../schemas.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -64,6 +67,17 @@ candidatesRouter.post("/jobs/:jobId/candidates", upload.single("resume"), async 
       }),
     ]);
 
+    // Best-effort auto-detect: most resumes won't have a GitHub link, so this
+    // adds no latency for the common case; when one is found, it's one extra
+    // sequential call after the batch above, not blocking scoring.
+    const githubUsername = extractGithubUsername(extractedText);
+    const githubEnrichment = githubUsername
+      ? await fetchGithubProfile(githubUsername).catch((err) => {
+          console.error("GitHub enrichment fetch failed (non-fatal):", err);
+          return null;
+        })
+      : null;
+
     const candidate = await createCandidate({
       jobId: job.id,
       userId,
@@ -72,6 +86,8 @@ candidatesRouter.post("/jobs/:jobId/candidates", upload.single("resume"), async 
       resumeFilename: file.originalname,
       resumeStoragePath,
       result,
+      githubUsername,
+      githubEnrichment,
     });
     return res.status(201).json(candidate);
   } catch (error) {
@@ -190,5 +206,91 @@ candidatesRouter.post("/candidates/:id/reanalyze", async (req, res) => {
     }
     console.error("Unexpected error in POST /api/candidates/:id/reanalyze:", error);
     return res.status(500).json({ error: "Something went wrong re-analyzing this candidate" });
+  }
+});
+
+// Serves three cases with one endpoint: adding a username the auto-detect
+// missed, correcting a wrong auto-detected one, and refreshing existing
+// enrichment (re-submit the currently-stored username). Any org member can
+// call this — it's data entry, not a destructive action, so no admin gate.
+candidatesRouter.post("/candidates/:id/github", async (req, res) => {
+  const { userId, orgId } = getAuth(req);
+  if (!userId) {
+    return res.status(401).json({ error: "Sign in to update this candidate" });
+  }
+  if (!orgId) {
+    return res.status(403).json({ error: "Join or create an organization to continue" });
+  }
+
+  const parsed = setCandidateGithubSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid request" });
+  }
+
+  try {
+    const candidate = await getCandidateById(req.params.id, orgId);
+    if (!candidate) {
+      return res.status(404).json({ error: "Candidate not found" });
+    }
+
+    const enrichment = await fetchGithubProfile(parsed.data.username);
+    const updated = await updateCandidateGithub(candidate.id, orgId, {
+      username: enrichment.profile.login,
+      enrichment,
+    });
+    if (!updated) {
+      return res.status(404).json({ error: "Candidate not found" });
+    }
+    return res.json(updated);
+  } catch (error) {
+    if (error instanceof GithubApiError) {
+      return res.status(400).json({ error: error.message });
+    }
+    if (error instanceof SupabaseServiceError) {
+      console.error("Failed to save GitHub enrichment:", error);
+      return res.status(500).json({ error: "Failed to save GitHub enrichment" });
+    }
+    console.error("Unexpected error in POST /api/candidates/:id/github:", error);
+    return res.status(500).json({ error: "Something went wrong fetching GitHub data" });
+  }
+});
+
+// Read-only — searches GitHub by the candidate's own captured name (no query
+// param needed) and returns a short list for a human to pick from. Never
+// auto-selects a result: names aren't unique, so silently attributing a
+// stranger's GitHub activity to the wrong candidate would be worse than
+// showing nothing. Not admin-gated, no mutation happens here.
+candidatesRouter.get("/candidates/:id/github/search", async (req, res) => {
+  const { userId, orgId } = getAuth(req);
+  if (!userId) {
+    return res.status(401).json({ error: "Sign in to search for this candidate" });
+  }
+  if (!orgId) {
+    return res.status(403).json({ error: "Join or create an organization to continue" });
+  }
+
+  try {
+    const candidate = await getCandidateById(req.params.id, orgId);
+    if (!candidate) {
+      return res.status(404).json({ error: "Candidate not found" });
+    }
+    if (!candidate.candidate_name) {
+      return res.status(400).json({
+        error: "This candidate's name hasn't been captured yet — re-analyze them to capture it.",
+      });
+    }
+
+    const results = await searchGithubUsers(candidate.candidate_name);
+    return res.json(results);
+  } catch (error) {
+    if (error instanceof GithubApiError) {
+      return res.status(502).json({ error: error.message });
+    }
+    if (error instanceof SupabaseServiceError) {
+      console.error("Failed to load candidate for GitHub search:", error);
+      return res.status(500).json({ error: "Failed to search GitHub" });
+    }
+    console.error("Unexpected error in GET /api/candidates/:id/github/search:", error);
+    return res.status(500).json({ error: "Something went wrong searching GitHub" });
   }
 });

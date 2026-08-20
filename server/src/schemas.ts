@@ -21,6 +21,7 @@ export const evidenceItemSchema = z.object({
 export const recommendationSchema = z.enum(["strong_match", "possible_match", "not_a_match"]);
 
 export const analysisResultSchema = z.object({
+  candidateName: z.string().nullable(),
   matchScore: z.number().int().min(0).max(100),
   recommendation: recommendationSchema,
   criteria: z.array(criterionSchema),
@@ -47,3 +48,7 @@ export const updateJobSchema = z
   .refine((data) => data.title !== undefined || data.jdText !== undefined, {
     message: "At least one field (title or jdText) must be provided",
   });
+
+export const setCandidateGithubSchema = z.object({
+  username: z.string().trim().min(1, "A GitHub username is required").max(39),
+});

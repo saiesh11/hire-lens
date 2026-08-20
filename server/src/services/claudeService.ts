@@ -9,6 +9,7 @@ const SYSTEM_PROMPT = `You are a recruitment screening assistant producing a str
 
 Return your assessment as JSON matching the required schema:
 
+- candidateName: the candidate's full name as it appears on the resume. Use null if you cannot confidently determine it — do not guess.
 - criteria: Identify the evaluation dimensions that actually matter for this specific job description (e.g. "Technical Skills", "Years of Experience", "Education", "Domain Knowledge", "Leadership" — choose what's relevant, don't force a fixed template). For each, classify it as "required" or "preferred" based on the job description's own language ("must have" / "required" vs. "nice to have" / "preferred" / "a plus"), score it 0-100 based on how well the resume evidences it, and give a short note explaining the score.
 - matchScore: your overall 0-100 assessment, weighted so that "required" criteria matter more than "preferred" ones.
 - recommendation: "strong_match", "possible_match", or "not_a_match" — a categorical triage recommendation matching how a recruiter would actually sort candidates, not just a restatement of the score.
