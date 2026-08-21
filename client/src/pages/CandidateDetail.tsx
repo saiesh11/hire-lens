@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApi, ApiError } from "../lib/api";
+import { useCachedResource } from "../lib/useCachedResource";
 import { AnalysisResultView } from "../components/AnalysisResultView";
 import { StaleBadge } from "../components/StaleBadge";
 import { GithubProfileCard } from "../components/GithubProfileCard";
@@ -18,53 +19,39 @@ export function CandidateDetail({ candidateId, onBack }: CandidateDetailProps) {
   const { getCandidate, deleteCandidate, reanalyzeCandidate, fetchCandidateGithub, searchCandidateGithub } = useApi();
   const { has } = useAuth();
   const isAdmin = has?.({ role: "org:admin" }) ?? false;
-  const [candidate, setCandidate] = useState<CandidateDetailType | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data: candidate,
+    isLoading,
+    error,
+    setData: setCandidate,
+  } = useCachedResource<CandidateDetailType>(`candidate:${candidateId}`, () => getCandidate(candidateId), [
+    candidateId,
+  ]);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isReanalyzing, setIsReanalyzing] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-    getCandidate(candidateId)
-      .then((data) => {
-        if (!cancelled) setCandidate(data);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err instanceof ApiError ? err.message : "Failed to load this candidate");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [candidateId]);
 
   async function handleDelete() {
     if (!window.confirm("Remove this candidate? This can't be undone.")) return;
     setIsDeleting(true);
+    setActionError(null);
     try {
       await deleteCandidate(candidateId);
       onBack();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to delete this candidate");
+      setActionError(err instanceof ApiError ? err.message : "Failed to delete this candidate");
       setIsDeleting(false);
     }
   }
 
   async function handleReanalyze() {
     setIsReanalyzing(true);
-    setError(null);
+    setActionError(null);
     try {
       const updated = await reanalyzeCandidate(candidateId);
       setCandidate(updated);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to re-analyze this candidate");
+      setActionError(err instanceof ApiError ? err.message : "Failed to re-analyze this candidate");
     } finally {
       setIsReanalyzing(false);
     }
@@ -119,9 +106,9 @@ export function CandidateDetail({ candidateId, onBack }: CandidateDetailProps) {
         </div>
       )}
 
-      {error && (
+      {(error || actionError) && (
         <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400" role="alert">
-          {error}
+          {error || actionError}
         </p>
       )}
 

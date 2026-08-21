@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ClerkProvider,
   SignedIn,
@@ -18,18 +18,13 @@ import { CandidateDetail } from "./pages/CandidateDetail";
 import { Settings } from "./pages/Settings";
 import { getPreferredTheme, setStoredTheme } from "./lib/preferences";
 import type { Theme } from "./lib/types";
+import { pathForView, viewFromPath, type View } from "./lib/router";
+import { clearCache } from "./lib/pageCache";
 
 const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 if (!clerkPublishableKey) {
   throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY — set it in client/.env");
 }
-
-type View =
-  | { name: "dashboard" }
-  | { name: "jobs" }
-  | { name: "job-detail"; jobId: string }
-  | { name: "candidate-detail"; candidateId: string; jobId: string }
-  | { name: "settings" };
 
 function LensMark() {
   return (
@@ -154,8 +149,44 @@ function NavBar({
 
 function AppContent({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () => void }) {
   const { orgId } = useAuth();
-  const [view, setView] = useState<View>({ name: "dashboard" });
+  const [view, setView] = useState<View>(() => viewFromPath(window.location.pathname));
   const [jobsRefreshKey, setJobsRefreshKey] = useState(0);
+
+  // Pushes a real browser history entry for forward/lateral navigation, so
+  // the browser's native back/forward — and the trackpad's two-finger
+  // swipe-back gesture, which is just a shortcut for history.back() —
+  // actually have something to navigate through. Each pushed entry carries
+  // an incrementing `depth` in its state object (the entry from the initial
+  // page load has state === null, i.e. depth 0).
+  function navigate(next: View) {
+    const nextDepth = ((window.history.state as { depth?: number } | null)?.depth ?? 0) + 1;
+    setView(next);
+    window.history.pushState({ depth: nextDepth }, "", pathForView(next));
+  }
+
+  // For "Back" actions: prefer real history.back() over pushing a new entry,
+  // so clicking Back repeatedly shrinks the stack instead of growing it —
+  // pushing on every back click was making swipe-back need far more swipes
+  // than expected to actually leave a page. Only falls back to navigate()
+  // (push) when the current entry's depth is 0, meaning this page was
+  // reached via a direct/deep link with no local history to pop — calling
+  // history.back() there would navigate away from the app entirely.
+  function goBack(parent: View) {
+    const depth = (window.history.state as { depth?: number } | null)?.depth ?? 0;
+    if (depth > 0) {
+      window.history.back();
+    } else {
+      navigate(parent);
+    }
+  }
+
+  useEffect(() => {
+    function onPopState() {
+      setView(viewFromPath(window.location.pathname));
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // Jobs/candidates are org-scoped, so switching the active org via
   // <OrganizationSwitcher /> can leave the current view pointing at data
@@ -163,9 +194,25 @@ function AppContent({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () 
   // own fetch effect only re-runs on jobsRefreshKey, not on org changes).
   // Snap back to the Dashboard and force a fresh fetch scoped to whichever
   // org is now active, rather than risk showing another org's data or a 404.
+  // Only fires when we can prove this is a real switch — a previously-known
+  // real org id changing to a different real org id — not just comparing
+  // against the first render: Clerk can emit more than one orgId change
+  // while resolving a session on a fresh page load (e.g. a cached value
+  // then a confirmed one), and each of those would otherwise wipe a
+  // URL-derived deep link back to the Dashboard before the user ever saw it.
+  const prevOrgId = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    setView({ name: "dashboard" });
-    setJobsRefreshKey((k) => k + 1);
+    const previous = prevOrgId.current;
+    prevOrgId.current = orgId;
+    if (previous && orgId && previous !== orgId) {
+      // Every cached page belongs to whichever org was active when it was
+      // fetched — clearing on a real org switch isn't a UX nicety, it's what
+      // stops another org's cached data from being briefly visible.
+      clearCache();
+      setView({ name: "dashboard" });
+      window.history.replaceState(null, "", "/");
+      setJobsRefreshKey((k) => k + 1);
+    }
   }, [orgId]);
 
   const active: "dashboard" | "jobs" | null =
@@ -179,21 +226,21 @@ function AppContent({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () 
     <div className="min-h-screen bg-background">
       <NavBar
         active={active}
-        onHome={() => setView({ name: "dashboard" })}
-        onJobs={() => setView({ name: "jobs" })}
-        onSettings={() => setView({ name: "settings" })}
+        onHome={() => navigate({ name: "dashboard" })}
+        onJobs={() => navigate({ name: "jobs" })}
+        onSettings={() => navigate({ name: "settings" })}
         theme={theme}
         onToggleTheme={onToggleTheme}
       />
 
       {view.name === "dashboard" && (
-        <Dashboard refreshKey={jobsRefreshKey} onCreateJob={() => setView({ name: "jobs" })} />
+        <Dashboard refreshKey={jobsRefreshKey} onCreateJob={() => navigate({ name: "jobs" })} />
       )}
 
       {view.name === "jobs" && (
         <Jobs
           refreshKey={jobsRefreshKey}
-          onSelect={(jobId) => setView({ name: "job-detail", jobId })}
+          onSelect={(jobId) => navigate({ name: "job-detail", jobId })}
           onCreated={() => setJobsRefreshKey((k) => k + 1)}
         />
       )}
@@ -201,13 +248,13 @@ function AppContent({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () 
       {view.name === "job-detail" && (
         <JobDetail
           jobId={view.jobId}
-          onBack={() => setView({ name: "jobs" })}
+          onBack={() => goBack({ name: "jobs" })}
           onSelectCandidate={(candidateId) =>
-            setView({ name: "candidate-detail", candidateId, jobId: view.jobId })
+            navigate({ name: "candidate-detail", candidateId, jobId: view.jobId })
           }
           onJobDeleted={() => {
             setJobsRefreshKey((k) => k + 1);
-            setView({ name: "jobs" });
+            goBack({ name: "jobs" });
           }}
         />
       )}
@@ -215,11 +262,11 @@ function AppContent({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () 
       {view.name === "candidate-detail" && (
         <CandidateDetail
           candidateId={view.candidateId}
-          onBack={() => setView({ name: "job-detail", jobId: view.jobId })}
+          onBack={() => goBack({ name: "job-detail", jobId: view.jobId })}
         />
       )}
 
-      {view.name === "settings" && <Settings onBack={() => setView({ name: "jobs" })} />}
+      {view.name === "settings" && <Settings onBack={() => goBack({ name: "jobs" })} />}
     </div>
   );
 }

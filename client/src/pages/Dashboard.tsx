@@ -16,7 +16,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useApi, ApiError } from "../lib/api";
+import { useApi } from "../lib/api";
+import { useCachedResource } from "../lib/useCachedResource";
 import type { DashboardSummary, Recommendation } from "../lib/types";
 
 interface DashboardProps {
@@ -166,30 +167,11 @@ function RecommendationDonut({ summary }: { summary: DashboardSummary }) {
 
 export function Dashboard({ refreshKey, onCreateJob }: DashboardProps) {
   const { getDashboardSummary } = useApi();
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-    getDashboardSummary()
-      .then((data) => {
-        if (!cancelled) setSummary(data);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err instanceof ApiError ? err.message : "Failed to load the dashboard");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [refreshKey]);
+  const { data: summary, isLoading, error } = useCachedResource<DashboardSummary>(
+    "dashboard",
+    getDashboardSummary,
+    [refreshKey],
+  );
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8 px-4 py-12">

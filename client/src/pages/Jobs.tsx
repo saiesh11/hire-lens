@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApi, ApiError } from "../lib/api";
+import { useCachedResource } from "../lib/useCachedResource";
 import type { JobListItem } from "../lib/types";
 
 interface JobsProps {
@@ -16,35 +17,17 @@ interface JobsProps {
 
 export function Jobs({ refreshKey, onSelect, onCreated }: JobsProps) {
   const { createJob, listJobs } = useApi();
-  const [jobs, setJobs] = useState<JobListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const {
+    data: jobsData,
+    isLoading,
+    error: loadError,
+  } = useCachedResource<JobListItem[]>("jobs", listJobs, [refreshKey]);
+  const jobs = jobsData ?? [];
 
   const [title, setTitle] = useState("");
   const [jdText, setJdText] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setLoadError(null);
-    listJobs()
-      .then((data) => {
-        if (!cancelled) setJobs(data);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setLoadError(err instanceof ApiError ? err.message : "Failed to load jobs");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [refreshKey]);
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();

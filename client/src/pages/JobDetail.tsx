@@ -11,6 +11,7 @@ import { HighlightedSummary } from "../components/HighlightedSummary";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BulkUploadForm } from "../components/BulkUploadForm";
 import { useApi, ApiError } from "../lib/api";
+import { useCachedResource } from "../lib/useCachedResource";
 import { getDefaultSort } from "../lib/preferences";
 import { SORT_LABELS, isCandidateStale } from "../lib/types";
 import type { JobDetail as JobDetailType, Recommendation, SortOption } from "../lib/types";
@@ -45,9 +46,12 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
   const { getJob, updateJob, deleteJob, createCandidate } = useApi();
   const { has } = useAuth();
   const isAdmin = has?.({ role: "org:admin" }) ?? false;
-  const [job, setJob] = useState<JobDetailType | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const {
+    data: job,
+    isLoading,
+    error: loadError,
+    setData: setJob,
+  } = useCachedResource<JobDetailType>(`job:${jobId}`, () => getJob(jobId), [jobId]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -55,45 +59,34 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
   const [isSaving, setIsSaving] = useState(false);
 
   const [sortOption, setSortOption] = useState<SortOption>(getDefaultSort);
+  const [actionError, setActionError] = useState<string | null>(null);
   const candidatesRef = useRef<HTMLDivElement>(null);
 
-  // Silent background refresh — re-fetches the job without touching isLoading,
-  // so the page (and the in-progress BulkUploadForm's queue) never unmounts.
-  // Bumping a refreshKey through the loading effect below would hide the whole
-  // page between every candidate upload, wiping BulkUploadForm's local state.
+  // Silent background refresh — re-fetches the job and writes it into the
+  // shared cache without touching isLoading, so the page (and the
+  // in-progress BulkUploadForm's queue) never unmounts.
   async function refreshJob() {
     try {
       const data = await getJob(jobId);
       setJob(data);
-    } catch (err) {
-      setLoadError(err instanceof ApiError ? err.message : "Failed to refresh this job");
+    } catch {
+      // A failed background refresh isn't worth surfacing over already-shown data.
     }
   }
 
+  // Seeds the edit form exactly once per jobId (the first time data becomes
+  // available for it, whether from cache or a fresh fetch) — deliberately not
+  // keyed on `job` alone, since the cached resource can also update silently
+  // in the background (revalidation, refreshJob), which must never clobber
+  // whatever the user is actively typing in the edit form.
+  const initializedForJobId = useRef<string | null>(null);
   useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setLoadError(null);
-    getJob(jobId)
-      .then((data) => {
-        if (!cancelled) {
-          setJob(data);
-          setEditTitle(data.title);
-          setEditJdText(data.jd_text);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setLoadError(err instanceof ApiError ? err.message : "Failed to load this job");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [jobId]);
+    if (job && initializedForJobId.current !== jobId) {
+      setEditTitle(job.title);
+      setEditJdText(job.jd_text);
+      initializedForJobId.current = jobId;
+    }
+  }, [job, jobId]);
 
   const sortedCandidates = useMemo(() => {
     if (!job) return [];
@@ -114,12 +107,13 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
   async function handleSaveEdit() {
     if (!editTitle.trim() || !editJdText.trim()) return;
     setIsSaving(true);
+    setActionError(null);
     try {
       await updateJob(jobId, { title: editTitle.trim(), jdText: editJdText.trim() });
       setIsEditing(false);
       await refreshJob();
     } catch (err) {
-      setLoadError(err instanceof ApiError ? err.message : "Failed to save changes");
+      setActionError(err instanceof ApiError ? err.message : "Failed to save changes");
     } finally {
       setIsSaving(false);
     }
@@ -127,11 +121,12 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
 
   async function handleDeleteJob() {
     if (!window.confirm("Delete this job and all its candidates? This can't be undone.")) return;
+    setActionError(null);
     try {
       await deleteJob(jobId);
       onJobDeleted();
     } catch (err) {
-      setLoadError(err instanceof ApiError ? err.message : "Failed to delete job");
+      setActionError(err instanceof ApiError ? err.message : "Failed to delete job");
     }
   }
 
@@ -149,9 +144,9 @@ export function JobDetail({ jobId, onBack, onSelectCandidate, onJobDeleted }: Jo
         </div>
       )}
 
-      {loadError && (
+      {(loadError || actionError) && (
         <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400" role="alert">
-          {loadError}
+          {loadError || actionError}
         </p>
       )}
 
