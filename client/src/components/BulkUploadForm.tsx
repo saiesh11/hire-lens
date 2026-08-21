@@ -59,19 +59,33 @@ export function BulkUploadForm({ onUploadFile, onCandidateAdded }: BulkUploadFor
     }
   }
 
+  // isProcessing (state) gates the buttons' `disabled` attribute, but state
+  // updates aren't synchronous — two clicks close enough together can both
+  // invoke handleStart/handleRetry before the first one's disabled state
+  // actually commits, each independently submitting the same queued files.
+  // This ref closes that race: it updates immediately, so a second call in
+  // the same tick sees it's already busy and bails out before doing anything.
+  const isBusyRef = useRef(false);
+
   async function handleStart() {
+    if (isBusyRef.current) return;
+    isBusyRef.current = true;
     setIsProcessing(true);
     const queued = entries.filter((e) => e.status === "queued");
     for (const entry of queued) {
       await processEntry(entry);
     }
     setIsProcessing(false);
+    isBusyRef.current = false;
   }
 
   async function handleRetry(entry: FileEntry) {
+    if (isBusyRef.current) return;
+    isBusyRef.current = true;
     setIsProcessing(true);
     await processEntry(entry);
     setIsProcessing(false);
+    isBusyRef.current = false;
   }
 
   function removeEntry(id: string) {
