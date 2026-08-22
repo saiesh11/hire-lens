@@ -10,7 +10,7 @@ Browser (client, :5173)
   ▼
 Express server (server, :3001)
   │
-  ├─ jobService fetches the Job's jd_text (owned, user_id-checked)
+  ├─ jobService fetches the Job's jd_text (org-scoped, org_id-checked)
   ├─ multer (memory storage) → raw PDF buffer
   ├─ (parallel) claudeService.analyzeResumeAgainstJob(pdfBuffer, job.jd_text)
   │    → Anthropic Messages API, claude-sonnet-4-6, PDF sent as a native
@@ -151,6 +151,24 @@ Prompted by looking at two AI-recruiting competitors' public marketing pages (Ju
 - **Dashboard stat cards get a restrained single-hue tint**, not a gradient — indigo for the general counts, and the Average Score card's tint reuses the same red/amber/green score-meaning colors as everywhere else in the app (`averageScoreCardClasses` in `Dashboard.tsx`, same thresholds as `ScoreGauge`/`scoreClasses`), so the card itself communicates "how's hiring going" at a glance. The chart cards were deliberately left neutral — tinting them too would compete with the charts' own red/amber/green data encoding.
 - **Deliberately not done**: no dark hero, no radial glow/spotlight effects, no grain texture, no nav/page-chrome rewrite — those are exactly the borrowed-skin moves that make competitor AI-recruiting sites look like each other.
 
+## Nav bar redesign + Clerk dark-theme fix
+
+Two things bundled together because fixing one properly required the other. The bug: Clerk's rendered components (`OrganizationSwitcher`, `UserButton`, `SignIn`, `OrganizationList`) have their own theming system, entirely separate from the app's Tailwind `.dark` class — toggling `.dark` on `<html>` restyled everything the app built, but Clerk's own components never saw that class, so text was unreadable (black-on-black) in dark mode. Fixed with `@clerk/themes`' `dark` import passed via `appearance={{ theme: theme === "dark" ? dark : undefined }}` — set **once** on `<ClerkProvider>`, cascading to every nested Clerk component with no per-component wiring. This required moving `ClerkProvider` out of `main.tsx` and into `App.tsx`, with `theme` state lifted to the top-level `App` function so the provider can react to it (`main.tsx` still calls `applyStoredTheme()` synchronously before render, to avoid a flash of the wrong theme for the app's own Tailwind styling).
+
+The nav bar itself (`NavBar` in `App.tsx`) got a redesign alongside: an indigo-tinted active-page pill on Dashboard/Jobs, a `Briefcase` icon on the Jobs link, a hover-only lens-scale animation on the logo (deliberately not continuous — an always-animating logo in a persistent bar reads as distracting on a tool used all day), an animated Sun/Moon cross-fade on the theme toggle, a hover-rotate on the settings gear, larger overall sizing, and a slow-drifting indigo/violet/blue "aurora" gradient layer behind the bar (`hl-aurora-drift` keyframe in `index.css`, low opacity, purely decorative — kept inside the existing indigo brand palette rather than introducing new hues, and deliberately restrained per the visual-identity pass's "not the generic AI-startup skin" stance above).
+
+## Client-side routing + page cache
+
+Two related fixes for real reported issues, not planned features. First: the app had no URL-backed navigation — view switching was purely in-memory `useState`, so the browser URL never left `/` and two-finger trackpad swipe-back (a shortcut for `history.back()`) had no history entries to act on. Fixed with a small hand-rolled History API layer rather than a router dependency — `client/src/lib/router.ts`'s `View` type plus `pathForView`/`viewFromPath` map the app's 5 flat view states to real routes (`/`, `/jobs`, `/jobs/:id`, `/jobs/:id/candidates/:id`, `/settings`); `App.tsx`'s `navigate()` pushes a history entry per view change, a `popstate` listener syncs state back on browser back/forward/swipe. In-app "Back" buttons call a `goBack()` helper that prefers real `history.back()` (so the stack shrinks instead of growing on every click) over pushing a new entry, falling back to a push only when the current entry has no local history behind it (a direct/deep link with nothing to pop). `vercel.json` gained a catch-all rewrite (`/(.*) → /index.html`) so refreshing on a deep route doesn't 404 against Vercel's static hosting — Vite's dev server already does this by default.
+
+One real bug surfaced while building this: the org-switch effect (resets the view to Dashboard when the active org changes) originally used a "skip the first run" boolean guard, which React's StrictMode defeats in development — StrictMode double-invokes every effect on mount, so the guard disarmed itself on the same tick it was meant to protect, wiping a URL-derived deep link back to `/` on every dev-mode page load. Fixed by comparing actual org identities (`previous && orgId && previous !== orgId`) instead of counting renders — immune to how many times Clerk emits an `orgId` change while resolving a session.
+
+Second: once back/forward navigation was actually usable, revisiting a page re-fetched from scratch every time (Dashboard/Jobs/JobDetail/CandidateDetail all fetch on mount, no caching). `client/src/lib/pageCache.ts` (a module-level `Map`) plus `client/src/lib/useCachedResource.ts` (the hook all four pages now use) add stale-while-revalidate: a cached value renders instantly with no loading skeleton while a fresh fetch always happens silently in the background, updating the cache and the UI once it resolves. A background revalidation failure never clobbers already-shown good data — `error` only surfaces when there's nothing cached to fall back on. The cache is cleared entirely (`clearCache()`) on a real org switch, since every cached key belongs to whichever org was active when it was fetched — briefly showing another org's cached data would be a real cross-tenant leak, not just a staleness nit. Deliberately *not* doing fine-grained cross-page invalidation (e.g. clearing the Jobs list's cache the instant a candidate is added elsewhere) — the stale-while-revalidate pattern already self-corrects within one round-trip the next time each page is actually visited, matching standard SWR/React Query default behavior, and this app's mutation frequency doesn't justify hand-chasing every cross-key dependency.
+
+## Bulk upload: fixed a double-submission race
+
+Reported live: uploading 2 resumes created 3 candidates, with one filename duplicated. Root cause in `BulkUploadForm.tsx`: `isProcessing` (React state) gates the Add/Retry buttons' `disabled` attribute, but state updates aren't synchronous — two clicks close enough together (a fast double-click, or a slow first click registering twice) could both invoke `handleStart`/`handleRetry` before the first call's disabled state actually committed to the DOM, each independently reading the same "queued" entries and submitting them. Fixed with a `useRef` re-entrancy guard (`isBusyRef`) checked synchronously at the top of both handlers — refs update immediately, unlike state, so a second near-simultaneous call sees the flag already set and bails out before doing anything, closing the race that `disabled={isProcessing}` alone couldn't.
+
 ## File map
 
 ```
@@ -161,7 +179,7 @@ server/src/
                  also captures candidateName), jobService (Job CRUD), candidateService (Candidate CRUD),
                  resumeStorageService (original resume PDFs in the private `resumes` bucket),
                  githubService (GitHub API profile enrichment + name-based search), dashboardService
-                 (org-wide stats/leaderboard, aggregated in application code)
+                 (org-wide stats/charts, aggregated in application code)
   routes/       jobs.ts (Job CRUD + composed job-with-candidates GET), candidates.ts (create/get/delete/
                  reanalyze/github-enrich/github-search a candidate), dashboard.ts (org summary)
   scripts/      backfillOrganizations.ts (one-time Phase 5 migration, run manually via tsx)
@@ -169,7 +187,7 @@ server/src/
                  includes candidateName), createJobSchema / updateJobSchema / setCandidateGithubSchema
 
 client/src/
-  lib/          api.ts (useApi() hook — token-attached fetch wrappers), types.ts (shared with server's DB row shape, kept in sync by hand), highlightTerms.ts (candidate-row summary term highlighting)
+  lib/          api.ts (useApi() hook — token-attached fetch wrappers), types.ts (shared with server's DB row shape, kept in sync by hand), highlightTerms.ts (candidate-row summary term highlighting), router.ts (View type + URL <-> view mapping), pageCache.ts (module-level cache Map), useCachedResource.ts (stale-while-revalidate fetch hook), preferences.ts (theme/sort, localStorage-backed)
   components/   UploadForm (single-file, unused since Phase 3 but kept — still works), BulkUploadForm (multi-file
                  queue with per-file retry, used by JobDetail), ScoreGauge (SVG ring), RecommendationBadge,
                  StaleBadge (candidate scored before the job's JD was last edited),
@@ -178,9 +196,10 @@ client/src/
                  HighlightedSummary (candidate-row summary snippet with matched skills marked),
                  CriteriaBreakdown, SkillsMatrixTable, StrengthsGapsList, InterviewQuestions,
                  AnalysisResultView (composes the scorecard components, evidence-first verdict layout)
-  pages/        Dashboard (landing page — org-wide stats, charts, cross-job leaderboard), Jobs (create + list),
+  pages/        Dashboard (landing page — org-wide stats + animated charts), Jobs (create + list),
                  JobDetail (JD, bulk-upload form, sortable ranked candidate list),
                  CandidateDetail (the scorecard, via AnalysisResultView)
-  App.tsx       SignedIn/SignedOut gating (Clerk), view-state navigation + nav bar (Dashboard/Jobs links)
-  main.tsx      wraps the app in <ClerkProvider>
+  App.tsx       ClerkProvider (with theme-aware appearance) + SignedIn/SignedOut gating, URL-backed
+                 navigation (navigate()/goBack(), popstate sync), the redesigned nav bar
+  main.tsx      applies the stored theme before first render, renders <App />
 ```

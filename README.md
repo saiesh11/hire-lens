@@ -1,51 +1,78 @@
 # HireLens
 
-Upload a resume (PDF) and a job description, and get back an AI-generated match score with explained strengths, gaps, and a summary — powered by Claude.
+A multi-tenant recruiting platform: create a job, upload candidate resumes (PDF), and get back an AI-generated, evidence-grounded scorecard for each one — powered by Claude.
 
-## Stack
+**🔗 Live demo: [hire-lens-lime-three.vercel.app](https://hire-lens-lime-three.vercel.app)**
 
-- **Client:** React + Vite + TypeScript + Tailwind CSS
-- **Server:** Node.js + Express + TypeScript
-- **Database:** PostgreSQL via Supabase
-- **AI:** Claude API (`claude-sonnet-4-6`), structured JSON output via Zod
-- **PDF parsing:** `pdf-parse`
+Sign up (Google or email), create or join an organization, create a job by pasting a description, then upload a resume PDF to see it scored.
+
+## What it does
+
+- **Multi-tenant organizations** via Clerk — teams share the same jobs/candidates, admin vs. member roles (only admins can delete)
+- **Structured AI scorecard per candidate** — overall match score, a weighted criteria breakdown (`required` vs. `preferred`), a present/partial/missing skills matrix, strengths and gaps each grounded in a specific quote from the resume/JD (not just an unexplained score), suggested interview questions, and a summary
+- **Bulk resume upload** with per-file progress and retry — add many candidates to a job at once
+- **Sorting and ranking** candidates within a job by score, recency, or recommendation
+- **JD-staleness detection** — if a job description is edited after candidates were already scored, those candidates are flagged stale with a one-click manual re-analyze
+- **GitHub profile enrichment** — auto-detected from a `github.com/...` link in the resume, or searched by the candidate's name with a human picking the right result (never auto-attributed — GitHub usernames and names aren't unique, so a wrong guess would be worse than no data)
+- **Org-wide dashboard** — total jobs/candidates, average score, animated recommendation-split and score-distribution charts
+- **Dark mode**, with every third-party component (including Clerk's own UI) themed to match
+
+## Tech stack
+
+- **Client** — React 19, Vite, TypeScript, Tailwind CSS v4, shadcn/ui, Recharts
+- **Server** — Node.js, Express, TypeScript
+- **Database + file storage** — Supabase (Postgres + Storage)
+- **Auth** — Clerk (multi-tenant Organizations, admin/member roles)
+- **AI** — Anthropic Claude API (`claude-sonnet-4-6`), structured JSON output validated with Zod
+- **Hosting** — Vercel — the client (static build) and the Express server (as a single Vercel Function) deploy from one project, no separate backend host needed
 
 ## Project structure
 
 ```
 hire-lens/
-├── client/          React + Vite + TS + Tailwind
+├── api/             Vercel Function entrypoint — re-exports the Express app
+├── client/          React + Vite + TS + Tailwind + shadcn/ui
 │   └── src/
-│       ├── pages/       Home, History, ResultDetail
-│       ├── components/  UploadForm, ScoreGauge, StrengthsGapsList, AnalysisResultView
-│       └── lib/         api client, shared types
-└── server/          Node + Express + TS
-    ├── src/
-    │   ├── routes/      analyze.ts, analyses.ts
-    │   ├── services/    claudeService.ts, pdfService.ts, supabaseService.ts
-    │   └── lib/         env, supabase client, claude client
-    └── supabase/schema.sql   run this once in the Supabase SQL editor
+│       ├── pages/       Dashboard, Jobs, JobDetail, CandidateDetail, Settings
+│       ├── components/  scorecard views, GitHub enrichment, bulk upload
+│       └── lib/         API client, client-side routing, page cache, types
+├── server/          Node + Express + TS
+│   ├── src/
+│   │   ├── routes/      jobs, candidates, dashboard
+│   │   ├── services/    Claude scoring, Supabase, GitHub enrichment, resume storage
+│   │   └── lib/         env validation, Supabase / Clerk / Anthropic clients
+│   └── supabase/schema.sql
+└── docs/            ARCHITECTURE.md, DEPLOYMENT.md, ROADMAP.md
 ```
 
-## Setup
+`client/` and `server/` are npm workspaces, installed together from the repo root.
 
-### 1. Supabase
+## Running it locally
 
-1. Create a project at [supabase.com](https://supabase.com).
-2. In **Project Settings → API**, copy the **Project URL** and **anon public** key.
-3. In the **SQL Editor**, run [`server/supabase/schema.sql`](server/supabase/schema.sql) to create the `analyses` table.
+### 1. Accounts you'll need
 
-### 2. Anthropic API key
+- A [Supabase](https://supabase.com) project (Postgres + Storage)
+- A [Clerk](https://clerk.com) application, with **Organizations** enabled (Clerk dashboard → Configure → Organizations) and **"Membership required"** turned on
+- An [Anthropic](https://console.anthropic.com) API key
 
-Create a key at [console.anthropic.com](https://console.anthropic.com) → **API Keys**.
+### 2. Set up Supabase
 
-### 3. Server
+1. Create a project, then in **Project Settings → API** copy the **Project URL**, **anon public** key, and **service_role** key.
+2. In the **SQL Editor**, run [`server/supabase/schema.sql`](server/supabase/schema.sql) — it's idempotent, safe to run more than once.
+
+### 3. Install and configure
 
 ```bash
-cd server
+git clone https://github.com/saiesh11/hire-lens.git
+cd hire-lens
 npm install
-cp .env.example .env   # then fill in the values below
-npm run dev             # starts on http://localhost:3001
+```
+
+Copy the example env files and fill them in:
+
+```bash
+cp server/.env.example server/.env
+cp client/.env.example client/.env
 ```
 
 `server/.env`:
@@ -54,31 +81,36 @@ npm run dev             # starts on http://localhost:3001
 ANTHROPIC_API_KEY=
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+CLERK_SECRET_KEY=
+CLERK_PUBLISHABLE_KEY=
+GITHUB_TOKEN=        # optional — GitHub enrichment works without it, just rate-limited lower
 PORT=3001
 ```
 
-### 4. Client
+`client/.env`:
 
-```bash
-cd client
-npm install
-npm run dev              # starts on http://localhost:5173
+```
+VITE_CLERK_PUBLISHABLE_KEY=
 ```
 
-The client dev server proxies `/api/*` to `http://localhost:3001`, so no client-side env var is needed. Run both `server` and `client` dev servers at the same time.
+### 4. Run it
 
-## API
+```bash
+cd server && npm run dev    # http://localhost:3001
+cd client && npm run dev    # http://localhost:5173 — proxies /api/* to the server
+```
 
-- `POST /api/analyze` — multipart form (`resume`: PDF file, `jobDescription`: text) → saved analysis
-- `GET /api/analyses` — list of past analyses (id, created_at, resume_filename, match_score)
-- `GET /api/analyses/:id` — full analysis detail
+Run both at once, in separate terminals.
 
-## Scope (v1)
+## Docs
 
-No auth, no multi-resume comparison, no resume builder, no payments. Single-user, single-flow: upload → analyze → view → history.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — request flow, the data model, and the reasoning behind every real design decision made along the way
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — how this is hosted on Vercel, including the real deploy issues hit and how they were diagnosed
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — what's shipped vs. what's left
 
-## More docs
+## What's left
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — request flow, design decisions and why, a Supabase RLS gotcha worth knowing about
-- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — hosting plan and cost estimate for when this goes on a real domain
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — what v1 covers vs. the v2 direction (better UI, structured review output, model/accuracy work)
+Everything on the original roadmap is done except one: migrating the AI layer from Claude to Google Gemini, deliberately scoped last.
+
+Day-to-day development happens on `dev`; `master` is the production branch Vercel deploys from, merged into deliberately once a batch of work is verified working.
